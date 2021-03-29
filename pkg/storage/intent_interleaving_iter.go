@@ -24,6 +24,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/protoutil"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
 	"github.com/cockroachdb/errors"
+	"github.com/cockroachdb/pebble"
 )
 
 type intentInterleavingIterConstraint int8
@@ -209,7 +210,8 @@ func newIntentInterleavingIterator(reader Reader, opts IterOptions) MVCCIterator
 		intentOpts.UpperBound = keys.LockTableSingleKeyEnd
 	}
 	// Note that we can reuse intentKeyBuf after NewEngineIterator returns.
-	intentIter := reader.NewEngineIterator(intentOpts)
+	//intentIter := reader.NewEngineIterator(intentOpts)
+	intentIter := dummyEngineIterator{}
 
 	// The creation of these iterators can race with concurrent mutations, which
 	// may make them inconsistent with each other. So we clone here, to ensure
@@ -219,7 +221,7 @@ func newIntentInterleavingIterator(reader Reader, opts IterOptions) MVCCIterator
 	if reader.ConsistentIterators() {
 		iter = reader.NewMVCCIterator(MVCCKeyIterKind, opts)
 	} else {
-		iter = newMVCCIteratorByCloningEngineIter(intentIter, opts)
+		iter = newMVCCIteratorByCloningEngineIter(reader.NewEngineIterator(intentOpts), opts)
 	}
 	iiIter := intentInterleavingIterPool.Get().(*intentInterleavingIter)
 	*iiIter = intentInterleavingIter{
@@ -934,4 +936,39 @@ func (i *unsafeMVCCIterator) mangleBufs() {
 			}
 		}
 	}
+}
+
+type dummyEngineIterator struct{}
+
+func (i dummyEngineIterator) Close() {}
+func (i dummyEngineIterator) SeekEngineKeyGE(key EngineKey) (valid bool, err error) {
+	return false, nil
+}
+func (i dummyEngineIterator) SeekEngineKeyLT(key EngineKey) (valid bool, err error) {
+	return false, nil
+}
+func (i dummyEngineIterator) NextEngineKey() (valid bool, err error) {
+	return false, nil
+}
+func (i dummyEngineIterator) PrevEngineKey() (valid bool, err error) {
+	return false, nil
+}
+func (i dummyEngineIterator) UnsafeEngineKey() (EngineKey, error) {
+	panic("dummyEngineIterator")
+}
+func (i dummyEngineIterator) EngineKey() (EngineKey, error) {
+	panic("dummyEngineIterator")
+}
+func (i dummyEngineIterator) UnsafeRawEngineKey() []byte {
+	panic("dummyEngineIterator")
+}
+func (i dummyEngineIterator) UnsafeValue() []byte {
+	panic("dummyEngineIterator")
+}
+func (i dummyEngineIterator) Value() []byte {
+	panic("dummyEngineIterator")
+}
+func (i dummyEngineIterator) SetUpperBound(roachpb.Key) {}
+func (i dummyEngineIterator) GetRawIter() *pebble.Iterator {
+	panic("dummyEngineIterator")
 }

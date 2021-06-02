@@ -16,6 +16,7 @@ import (
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
 	"github.com/cockroachdb/cockroach/pkg/util/encoding"
+	"github.com/cockroachdb/cockroach/pkg/util/hlc"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
 	"github.com/cockroachdb/errors"
 )
@@ -417,6 +418,53 @@ func TransactionKey(key roachpb.Key, txnID uuid.UUID) roachpb.Key {
 // processed times.
 func QueueLastProcessedKey(key roachpb.RKey, queue string) roachpb.Key {
 	return MakeRangeKey(key, LocalQueueLastProcessedSuffix, roachpb.RKey(queue))
+}
+
+func NonMVCCKey(ts hlc.Timestamp, startKey, endKey roachpb.Key) roachpb.Key {
+	// FIXME(erikgrinaker): Avoid growing the buffer in the typical case.
+	buf := roachpb.Key{}
+	buf = append(buf, LocalNonMVCCPrefix...)
+	// FIXME(erikgrinaker): Use an order-preserving varint encoding,
+	// or some standard means of timestamp encoding?
+	buf = encoding.EncodeUint64Ascending(buf, uint64(ts.WallTime))
+	buf = encoding.EncodeUint32Ascending(buf, uint32(ts.Logical))
+	buf = encoding.EncodeBytesAscending(buf, startKey)
+	buf = encoding.EncodeBytesAscending(buf, endKey)
+	return buf
+}
+
+func DecodeNonMVCCKey(key roachpb.Key) (hlc.Timestamp, roachpb.Key, roachpb.Key, error) {
+	if !bytes.HasPrefix(key, LocalNonMVCCPrefix) {
+		return hlc.Timestamp{}, nil, nil, errors.Errorf("key %q does not have %q prefix",
+			key, LocalNonMVCCPrefix)
+	}
+	// Cut the prefix.
+	b := key[len(LocalNonMVCCPrefix):]
+	// FIXME(erikgrinaker): Check for overflow, and improve decoding.
+	var (
+		err      error
+		walltime uint64
+		logical  uint32
+		startKey []byte
+		endKey   []byte
+	)
+	b, walltime, err = encoding.DecodeUint64Ascending(b)
+	if err != nil {
+		return hlc.Timestamp{}, nil, nil, err
+	}
+	b, logical, err = encoding.DecodeUint32Ascending(b)
+	if err != nil {
+		return hlc.Timestamp{}, nil, nil, err
+	}
+	b, startKey, err = encoding.DecodeBytesAscending(b, nil)
+	if err != nil {
+		return hlc.Timestamp{}, nil, nil, err
+	}
+	_, endKey, err = encoding.DecodeBytesAscending(b, nil)
+	if err != nil {
+		return hlc.Timestamp{}, nil, nil, err
+	}
+	return hlc.Timestamp{WallTime: int64(walltime), Logical: int32(logical)}, startKey, endKey, nil
 }
 
 // LockTableSingleKey creates a key under which all single-key locks for the

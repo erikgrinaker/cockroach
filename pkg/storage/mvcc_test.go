@@ -417,6 +417,44 @@ func TestMVCCGetAndDelete(t *testing.T) {
 	}
 }
 
+func TestMVCCGetClearRanged(t *testing.T) {
+	defer leaktest.AfterTest(t)()
+	defer log.Scope(t).Close(t)
+
+	ctx := context.Background()
+
+	for _, engineImpl := range mvccEngineImpls {
+		t.Run(engineImpl.name, func(t *testing.T) {
+			engine := engineImpl.create()
+			defer engine.Close()
+
+			tsPut := hlc.Timestamp{Logical: 1}
+			tsReadBefore := hlc.Timestamp{Logical: 2}
+			tsClear := hlc.Timestamp{Logical: 3}
+			tsReadAfter := hlc.Timestamp{Logical: 4}
+
+			require.NoError(t, MVCCPut(ctx, engine, nil, testKey2, tsPut, value1, nil))
+			require.NoError(t, engine.ClearMVCCRangeAndIntents(tsClear, testKey2, testKey3))
+
+			// Reading key before ClearRange should error.
+			_, _, err := MVCCGet(ctx, engine, testKey2, tsReadBefore, MVCCGetOptions{})
+			require.EqualError(t, err, "key span /db{2-3} has been cleared by ClearRange at 0,3")
+
+			// Reading other keys before ClearRange should not error.
+			_, _, err = MVCCGet(ctx, engine, testKey1, tsReadBefore, MVCCGetOptions{})
+			require.NoError(t, err)
+
+			_, _, err = MVCCGet(ctx, engine, testKey3, tsReadBefore, MVCCGetOptions{})
+			require.NoError(t, err)
+
+			// Reading key after ClearRange should return empty.
+			v, _, err := MVCCGet(ctx, engine, testKey2, tsReadAfter, MVCCGetOptions{})
+			require.NoError(t, err)
+			require.Empty(t, v)
+		})
+	}
+}
+
 // TestMVCCWriteWithOlderTimestampAfterDeletionOfNonexistentKey tests a write
 // that comes after a delete on a nonexistent key, with the write holding a
 // timestamp earlier than the delete timestamp. The delete must write a

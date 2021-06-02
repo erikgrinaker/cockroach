@@ -205,6 +205,10 @@ func (rts *resolvedTimestamp) consumeLogicalOp(op enginepb.MVCCLogicalOp) bool {
 		}
 		return rts.intentQ.Del(t.TxnID)
 
+	case *enginepb.NonMVCCClearRangeOp:
+		rts.assertOpAboveRTS(op, t.Timestamp)
+		return false
+
 	default:
 		panic(errors.AssertionFailedf("unknown logical op %T", t))
 	}

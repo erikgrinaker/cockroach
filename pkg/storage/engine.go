@@ -550,7 +550,7 @@ type Writer interface {
 	// of the ClearMVCCRangeAndIntents.
 	//
 	// It is safe to modify the contents of the arguments after it returns.
-	ClearMVCCRangeAndIntents(start, end roachpb.Key) error
+	ClearMVCCRangeAndIntents(ts hlc.Timestamp, start, end roachpb.Key) error
 	// ClearMVCCRange removes MVCC keys from start (inclusive) to end
 	// (exclusive). It should not be expected to clear intents, though may clear
 	// interleaved intents that it encounters. It is meant for efficiently

@@ -585,12 +585,13 @@ type clearRangeOp struct {
 	m      *metaTestRunner
 	key    roachpb.Key
 	endKey roachpb.Key
+	ts     hlc.Timestamp
 }
 
 func (c clearRangeOp) run(ctx context.Context) string {
 	// ClearRange calls in Cockroach usually happen with boundaries demarcated
 	// using unversioned keys, so mimic the same behavior here.
-	err := c.m.engine.ClearMVCCRangeAndIntents(c.key, c.endKey)
+	err := c.m.engine.ClearMVCCRangeAndIntents(c.ts, c.key, c.endKey)
 	if err != nil {
 		return fmt.Sprintf("error: %s", err.Error())
 	}

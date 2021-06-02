@@ -38,9 +38,9 @@ func (wb *wrappedBatch) ClearIterRange(iter storage.MVCCIterator, start, end roa
 	return wb.Batch.ClearIterRange(iter, start, end)
 }
 
-func (wb *wrappedBatch) ClearMVCCRangeAndIntents(start, end roachpb.Key) error {
+func (wb *wrappedBatch) ClearMVCCRangeAndIntents(ts hlc.Timestamp, start, end roachpb.Key) error {
 	wb.clearRangeCount++
-	return wb.Batch.ClearMVCCRangeAndIntents(start, end)
+	return wb.Batch.ClearMVCCRangeAndIntents(ts, start, end)
 }
 
 // TestCmdClearRangeBytesThreshold verifies that clear range resorts to

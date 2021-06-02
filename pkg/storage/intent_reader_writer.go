@@ -20,6 +20,8 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
 	"github.com/cockroachdb/cockroach/pkg/settings"
 	"github.com/cockroachdb/cockroach/pkg/settings/cluster"
+	"github.com/cockroachdb/cockroach/pkg/storage/enginepb"
+	"github.com/cockroachdb/cockroach/pkg/util/hlc"
 	"github.com/cockroachdb/cockroach/pkg/util/protoutil"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
 	"github.com/cockroachdb/errors"
@@ -189,12 +191,29 @@ func (idw intentDemuxWriter) PutIntent(
 // allocations -- its contents will be overwritten and not appended to, and a
 // possibly different buf returned.
 func (idw intentDemuxWriter) ClearMVCCRangeAndIntents(
-	start, end roachpb.Key, buf []byte,
+	ts hlc.Timestamp, start, end roachpb.Key, buf []byte,
 ) ([]byte, error) {
 	if idw.settings == nil {
 		return nil, errors.AssertionFailedf("intentDemuxWriter not configured with cluster.Setttings")
 	}
-	err := idw.w.ClearRawRange(start, end)
+	record := enginepb.NonMVCCRecord{ClearRange: &enginepb.NonMVCCClearRangeRecord{}}
+	pbRecord, err := protoutil.Marshal(&record)
+	if err != nil {
+		return buf, err
+	}
+	err = idw.w.PutUnversioned(keys.NonMVCCKey(ts, start, end), pbRecord)
+	if err != nil {
+		return buf, err
+	}
+	idw.w.LogLogicalOp(NonMVCCClearRangeOpType, MVCCLogicalOpDetails{
+		Key:       start,
+		Timestamp: ts,
+		Safe:      true, // FIXME Is it?
+		NonMVCC: NonMVCCLogicalOpDetails{
+			EndKey: end,
+		},
+	})
+	err = idw.w.ClearRawRange(start, end)
 	if err != nil {
 		return buf, err
 	}

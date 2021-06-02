@@ -2152,16 +2152,36 @@ message RangeFeedError {
   kv.kvpb.Error error = 1 [(gogoproto.nullable) = false];
 }
 
+message RangeFeedClearRange {
+  util.hlc.Timestamp timestamp = 1 [(gogoproto.nullable) = false];
+  Span               span      = 2 [(gogoproto.nullable) = false];
+}
+
+message RangeFeedRevertRange {
+  util.hlc.Timestamp timestamp   = 1 [(gogoproto.nullable) = false];
+  Span               span        = 2 [(gogoproto.nullable) = false];
+  util.hlc.Timestamp target_time = 3 [(gogoproto.nullable) = false];
+}
+
+message RangeFeedAddSSTable {
+  util.hlc.Timestamp timestamp  = 1 [(gogoproto.nullable) = false];
+  Span               span       = 2 [(gogoproto.nullable) = false];
+  util.hlc.Timestamp start_time = 3 [(gogoproto.nullable) = false];
+  util.hlc.Timestamp end_time   = 4 [(gogoproto.nullable) = false];
+}
+
 // RangeFeedEvent is a union of all event types that may be returned on a
 // RangeFeed response stream.
 message RangeFeedEvent {
   option (gogoproto.onlyone) = true;
 
-  RangeFeedValue      val        = 1;
-  RangeFeedCheckpoint checkpoint = 2;
-  RangeFeedError      error      = 3;
+  RangeFeedValue       val          = 1;
+  RangeFeedCheckpoint  checkpoint   = 2;
+  RangeFeedError       error        = 3;
+  RangeFeedClearRange  clear_range  = 4;
+  RangeFeedRevertRange revert_range = 5;
+  RangeFeedAddSSTable  add_sstable  = 6;
 }
-
 
 // ResetQuorumRequest makes a range that is unavailable due to lost quorum
 // available again, at the cost of losing all of the data in the range. Any

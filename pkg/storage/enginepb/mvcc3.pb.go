@@ -581,12 +581,15 @@ var xxx_messageInfo_MVCCAbortTxnOp proto.InternalMessageInfo
 
 // MVCCLogicalOp is a union of all logical MVCC operation types.
 type MVCCLogicalOp struct {
-	WriteValue   *MVCCWriteValueOp   `protobuf:"bytes,1,opt,name=write_value,json=writeValue,proto3" json:"write_value,omitempty"`
-	WriteIntent  *MVCCWriteIntentOp  `protobuf:"bytes,2,opt,name=write_intent,json=writeIntent,proto3" json:"write_intent,omitempty"`
-	UpdateIntent *MVCCUpdateIntentOp `protobuf:"bytes,3,opt,name=update_intent,json=updateIntent,proto3" json:"update_intent,omitempty"`
-	CommitIntent *MVCCCommitIntentOp `protobuf:"bytes,4,opt,name=commit_intent,json=commitIntent,proto3" json:"commit_intent,omitempty"`
-	AbortIntent  *MVCCAbortIntentOp  `protobuf:"bytes,5,opt,name=abort_intent,json=abortIntent,proto3" json:"abort_intent,omitempty"`
-	AbortTxn     *MVCCAbortTxnOp     `protobuf:"bytes,6,opt,name=abort_txn,json=abortTxn,proto3" json:"abort_txn,omitempty"`
+	WriteValue   *MVCCWriteValueOp     `protobuf:"bytes,1,opt,name=write_value,json=writeValue,proto3" json:"write_value,omitempty"`
+	WriteIntent  *MVCCWriteIntentOp    `protobuf:"bytes,2,opt,name=write_intent,json=writeIntent,proto3" json:"write_intent,omitempty"`
+	UpdateIntent *MVCCUpdateIntentOp   `protobuf:"bytes,3,opt,name=update_intent,json=updateIntent,proto3" json:"update_intent,omitempty"`
+	CommitIntent *MVCCCommitIntentOp   `protobuf:"bytes,4,opt,name=commit_intent,json=commitIntent,proto3" json:"commit_intent,omitempty"`
+	AbortIntent  *MVCCAbortIntentOp    `protobuf:"bytes,5,opt,name=abort_intent,json=abortIntent,proto3" json:"abort_intent,omitempty"`
+	AbortTxn     *MVCCAbortTxnOp       `protobuf:"bytes,6,opt,name=abort_txn,json=abortTxn,proto3" json:"abort_txn,omitempty"`
+	ClearRange   *NonMVCCClearRangeOp  `protobuf:"bytes,7,opt,name=clear_range,json=clearRange,proto3" json:"clear_range,omitempty"`
+	RevertRange  *NonMVCCRevertRangeOp `protobuf:"bytes,8,opt,name=revert_range,json=revertRange,proto3" json:"revert_range,omitempty"`
+	AddSstable   *NonMVCCAddSSTableOp  `protobuf:"bytes,9,opt,name=add_sstable,json=addSstable,proto3" json:"add_sstable,omitempty"`
 }
 
 func (m *MVCCLogicalOp) Reset()         { *m = MVCCLogicalOp{} }
@@ -618,6 +621,250 @@ func (m *MVCCLogicalOp) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_MVCCLogicalOp proto.InternalMessageInfo
 
+// TODO(erikgrinaker): Should use roachpb.Span, but causes circular import.
+type NonMVCCClearRangeOp struct {
+	Timestamp hlc.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp"`
+	StartKey  []byte        `protobuf:"bytes,2,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
+	EndKey    []byte        `protobuf:"bytes,3,opt,name=end_key,json=endKey,proto3" json:"end_key,omitempty"`
+}
+
+func (m *NonMVCCClearRangeOp) Reset()         { *m = NonMVCCClearRangeOp{} }
+func (m *NonMVCCClearRangeOp) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCClearRangeOp) ProtoMessage()    {}
+func (*NonMVCCClearRangeOp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{12}
+}
+func (m *NonMVCCClearRangeOp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCClearRangeOp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCClearRangeOp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCClearRangeOp.Merge(m, src)
+}
+func (m *NonMVCCClearRangeOp) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCClearRangeOp) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCClearRangeOp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCClearRangeOp proto.InternalMessageInfo
+
+type NonMVCCRevertRangeOp struct {
+	Timestamp  hlc.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp"`
+	StartKey   []byte        `protobuf:"bytes,2,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
+	EndKey     []byte        `protobuf:"bytes,3,opt,name=end_key,json=endKey,proto3" json:"end_key,omitempty"`
+	TargetTime hlc.Timestamp `protobuf:"bytes,4,opt,name=target_time,json=targetTime,proto3" json:"target_time"`
+}
+
+func (m *NonMVCCRevertRangeOp) Reset()         { *m = NonMVCCRevertRangeOp{} }
+func (m *NonMVCCRevertRangeOp) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCRevertRangeOp) ProtoMessage()    {}
+func (*NonMVCCRevertRangeOp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{13}
+}
+func (m *NonMVCCRevertRangeOp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCRevertRangeOp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCRevertRangeOp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCRevertRangeOp.Merge(m, src)
+}
+func (m *NonMVCCRevertRangeOp) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCRevertRangeOp) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCRevertRangeOp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCRevertRangeOp proto.InternalMessageInfo
+
+type NonMVCCAddSSTableOp struct {
+	Timestamp hlc.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp"`
+	StartKey  []byte        `protobuf:"bytes,2,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
+	EndKey    []byte        `protobuf:"bytes,3,opt,name=end_key,json=endKey,proto3" json:"end_key,omitempty"`
+	StartTime hlc.Timestamp `protobuf:"bytes,4,opt,name=start_time,json=startTime,proto3" json:"start_time"`
+	EndTime   hlc.Timestamp `protobuf:"bytes,5,opt,name=end_time,json=endTime,proto3" json:"end_time"`
+}
+
+func (m *NonMVCCAddSSTableOp) Reset()         { *m = NonMVCCAddSSTableOp{} }
+func (m *NonMVCCAddSSTableOp) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCAddSSTableOp) ProtoMessage()    {}
+func (*NonMVCCAddSSTableOp) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{14}
+}
+func (m *NonMVCCAddSSTableOp) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCAddSSTableOp) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCAddSSTableOp) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCAddSSTableOp.Merge(m, src)
+}
+func (m *NonMVCCAddSSTableOp) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCAddSSTableOp) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCAddSSTableOp.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCAddSSTableOp proto.InternalMessageInfo
+
+// NonMVCCRecord is a union of all non-MVCC record types.
+type NonMVCCRecord struct {
+	ClearRange  *NonMVCCClearRangeRecord  `protobuf:"bytes,1,opt,name=clear_range,json=clearRange,proto3" json:"clear_range,omitempty"`
+	RevertRange *NonMVCCRevertRangeRecord `protobuf:"bytes,2,opt,name=revert_range,json=revertRange,proto3" json:"revert_range,omitempty"`
+	AddSstable  *NonMVCCAddSSTableRecord  `protobuf:"bytes,3,opt,name=add_sstable,json=addSstable,proto3" json:"add_sstable,omitempty"`
+}
+
+func (m *NonMVCCRecord) Reset()         { *m = NonMVCCRecord{} }
+func (m *NonMVCCRecord) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCRecord) ProtoMessage()    {}
+func (*NonMVCCRecord) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{15}
+}
+func (m *NonMVCCRecord) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCRecord) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCRecord) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCRecord.Merge(m, src)
+}
+func (m *NonMVCCRecord) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCRecord) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCRecord.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCRecord proto.InternalMessageInfo
+
+type NonMVCCClearRangeRecord struct {
+}
+
+func (m *NonMVCCClearRangeRecord) Reset()         { *m = NonMVCCClearRangeRecord{} }
+func (m *NonMVCCClearRangeRecord) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCClearRangeRecord) ProtoMessage()    {}
+func (*NonMVCCClearRangeRecord) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{16}
+}
+func (m *NonMVCCClearRangeRecord) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCClearRangeRecord) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCClearRangeRecord) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCClearRangeRecord.Merge(m, src)
+}
+func (m *NonMVCCClearRangeRecord) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCClearRangeRecord) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCClearRangeRecord.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCClearRangeRecord proto.InternalMessageInfo
+
+type NonMVCCRevertRangeRecord struct {
+	TargetTime hlc.Timestamp `protobuf:"bytes,1,opt,name=target_time,json=targetTime,proto3" json:"target_time"`
+}
+
+func (m *NonMVCCRevertRangeRecord) Reset()         { *m = NonMVCCRevertRangeRecord{} }
+func (m *NonMVCCRevertRangeRecord) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCRevertRangeRecord) ProtoMessage()    {}
+func (*NonMVCCRevertRangeRecord) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{17}
+}
+func (m *NonMVCCRevertRangeRecord) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCRevertRangeRecord) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCRevertRangeRecord) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCRevertRangeRecord.Merge(m, src)
+}
+func (m *NonMVCCRevertRangeRecord) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCRevertRangeRecord) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCRevertRangeRecord.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCRevertRangeRecord proto.InternalMessageInfo
+
+type NonMVCCAddSSTableRecord struct {
+	StartTime hlc.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time"`
+	EndTime   hlc.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time"`
+}
+
+func (m *NonMVCCAddSSTableRecord) Reset()         { *m = NonMVCCAddSSTableRecord{} }
+func (m *NonMVCCAddSSTableRecord) String() string { return proto.CompactTextString(m) }
+func (*NonMVCCAddSSTableRecord) ProtoMessage()    {}
+func (*NonMVCCAddSSTableRecord) Descriptor() ([]byte, []int) {
+	return fileDescriptor_6599d13285d4d9cc, []int{18}
+}
+func (m *NonMVCCAddSSTableRecord) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *NonMVCCAddSSTableRecord) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	b = b[:cap(b)]
+	n, err := m.MarshalToSizedBuffer(b)
+	if err != nil {
+		return nil, err
+	}
+	return b[:n], nil
+}
+func (m *NonMVCCAddSSTableRecord) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_NonMVCCAddSSTableRecord.Merge(m, src)
+}
+func (m *NonMVCCAddSSTableRecord) XXX_Size() int {
+	return m.Size()
+}
+func (m *NonMVCCAddSSTableRecord) XXX_DiscardUnknown() {
+	xxx_messageInfo_NonMVCCAddSSTableRecord.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_NonMVCCAddSSTableRecord proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*TxnMeta)(nil), "cockroach.storage.enginepb.TxnMeta")
 	proto.RegisterType((*IgnoredSeqNumRange)(nil), "cockroach.storage.enginepb.IgnoredSeqNumRange")
@@ -631,91 +878,115 @@ func init() {
 	proto.RegisterType((*MVCCAbortIntentOp)(nil), "cockroach.storage.enginepb.MVCCAbortIntentOp")
 	proto.RegisterType((*MVCCAbortTxnOp)(nil), "cockroach.storage.enginepb.MVCCAbortTxnOp")
 	proto.RegisterType((*MVCCLogicalOp)(nil), "cockroach.storage.enginepb.MVCCLogicalOp")
+	proto.RegisterType((*NonMVCCClearRangeOp)(nil), "cockroach.storage.enginepb.NonMVCCClearRangeOp")
+	proto.RegisterType((*NonMVCCRevertRangeOp)(nil), "cockroach.storage.enginepb.NonMVCCRevertRangeOp")
+	proto.RegisterType((*NonMVCCAddSSTableOp)(nil), "cockroach.storage.enginepb.NonMVCCAddSSTableOp")
+	proto.RegisterType((*NonMVCCRecord)(nil), "cockroach.storage.enginepb.NonMVCCRecord")
+	proto.RegisterType((*NonMVCCClearRangeRecord)(nil), "cockroach.storage.enginepb.NonMVCCClearRangeRecord")
+	proto.RegisterType((*NonMVCCRevertRangeRecord)(nil), "cockroach.storage.enginepb.NonMVCCRevertRangeRecord")
+	proto.RegisterType((*NonMVCCAddSSTableRecord)(nil), "cockroach.storage.enginepb.NonMVCCAddSSTableRecord")
 }
 
 func init() { proto.RegisterFile("storage/enginepb/mvcc3.proto", fileDescriptor_6599d13285d4d9cc) }
 
 var fileDescriptor_6599d13285d4d9cc = []byte{
-	// 1250 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x57, 0xcf, 0x6e, 0xdb, 0xc6,
-	0x13, 0x36, 0x45, 0xca, 0xa6, 0x46, 0xb2, 0x2d, 0x6f, 0xf2, 0xfb, 0x55, 0xc8, 0x1f, 0xc9, 0xd5,
-	0xa1, 0x30, 0xd2, 0x84, 0x2a, 0x92, 0x9e, 0x7c, 0x93, 0xe4, 0x20, 0x55, 0x1a, 0xc7, 0x09, 0xad,
-	0xa4, 0x40, 0x0b, 0x94, 0x58, 0x91, 0x5b, 0x9a, 0x30, 0xb5, 0x64, 0xc8, 0x95, 0x22, 0xbd, 0x45,
-	0x2f, 0x05, 0x7a, 0x68, 0x01, 0x9f, 0xfa, 0x04, 0x3d, 0xf4, 0x11, 0x7c, 0xcc, 0xa1, 0x87, 0xa0,
-	0x40, 0x85, 0x56, 0xb9, 0xf4, 0x19, 0x92, 0x4b, 0xb1, 0xbb, 0x14, 0x25, 0x25, 0x8d, 0xac, 0x36,
-	0xa8, 0x81, 0xde, 0x76, 0xe7, 0x9b, 0xf9, 0x66, 0x38, 0xfa, 0x76, 0x67, 0x05, 0x57, 0x62, 0x16,
-	0x44, 0xd8, 0x25, 0x35, 0x42, 0x5d, 0x8f, 0x92, 0xb0, 0x53, 0xeb, 0xf6, 0x6d, 0xfb, 0x96, 0x11,
-	0x46, 0x01, 0x0b, 0xd0, 0x25, 0x3b, 0xb0, 0x8f, 0xa3, 0x00, 0xdb, 0x47, 0x46, 0xe2, 0x67, 0x4c,
-	0xfc, 0x2e, 0x95, 0x7a, 0xcc, 0xf3, 0x6b, 0x47, 0xbe, 0x5d, 0x63, 0x5e, 0x97, 0xc4, 0x0c, 0x77,
-	0x43, 0x19, 0x75, 0xe9, 0xa2, 0x1b, 0xb8, 0x81, 0x58, 0xd6, 0xf8, 0x4a, 0x5a, 0xab, 0xdf, 0xa8,
-	0xb0, 0xd6, 0x1e, 0xd0, 0x7d, 0xc2, 0x30, 0x7a, 0x08, 0x19, 0xcf, 0x29, 0x29, 0xdb, 0xca, 0x4e,
-	0xa1, 0x51, 0x3f, 0x1d, 0x55, 0x56, 0x7e, 0x19, 0x55, 0x6e, 0xb9, 0x1e, 0x3b, 0xea, 0x75, 0x0c,
-	0x3b, 0xe8, 0xd6, 0xd2, 0xb4, 0x4e, 0x67, 0xba, 0xae, 0x85, 0xc7, 0x6e, 0x4d, 0x24, 0xed, 0xf5,
-	0x3c, 0xc7, 0x78, 0xf4, 0xa8, 0xb5, 0x37, 0x1e, 0x55, 0x32, 0xad, 0x3d, 0x33, 0xe3, 0x39, 0xa8,
-	0x08, 0xea, 0x31, 0x19, 0x96, 0x54, 0xce, 0x69, 0xf2, 0x25, 0xaa, 0x42, 0x96, 0x84, 0x81, 0x7d,
-	0x54, 0xd2, 0xb6, 0x95, 0x9d, 0x6c, 0xa3, 0xf0, 0x72, 0x54, 0xd1, 0xdb, 0x03, 0x7a, 0x9b, 0xdb,
-	0x4c, 0x09, 0xa1, 0x7b, 0xb0, 0xf9, 0x34, 0xf2, 0x18, 0xb1, 0xd2, 0x6f, 0x28, 0x65, 0xb7, 0x95,
-	0x9d, 0xfc, 0xcd, 0xab, 0xc6, 0xf4, 0xd3, 0x79, 0x4e, 0xe3, 0xc8, 0xb7, 0x8d, 0xf6, 0xc4, 0xa9,
-	0xa1, 0xf1, 0xa2, 0xcd, 0x0d, 0x11, 0x9b, 0x5a, 0xd1, 0x27, 0xb0, 0xde, 0xf5, 0xe8, 0x0c, 0x57,
-	0x6e, 0x79, 0xae, 0x42, 0xd7, 0xa3, 0x53, 0xa6, 0x0f, 0x41, 0x0f, 0x23, 0x2f, 0x88, 0x3c, 0x36,
-	0x2c, 0xad, 0x8a, 0xf2, 0x37, 0x5f, 0x8e, 0x2a, 0xf9, 0xf6, 0x80, 0x3e, 0x48, 0xcc, 0x66, 0xea,
-	0x80, 0x3e, 0x00, 0x3d, 0x26, 0x4f, 0x7a, 0x84, 0xda, 0xa4, 0xb4, 0x26, 0x9c, 0xe1, 0xe5, 0xa8,
-	0xb2, 0xda, 0x1e, 0xd0, 0x43, 0xf2, 0xc4, 0x4c, 0xb1, 0x5d, 0xfd, 0xdb, 0x93, 0xca, 0xca, 0x4f,
-	0x27, 0x15, 0xe5, 0xae, 0xa6, 0x67, 0x8a, 0xea, 0x5d, 0x4d, 0xd7, 0x8b, 0xb9, 0xea, 0x97, 0x80,
-	0x5a, 0x2e, 0x0d, 0x22, 0xe2, 0x1c, 0x92, 0x27, 0xf7, 0x7b, 0x5d, 0x13, 0x53, 0x97, 0xa0, 0x6d,
-	0xc8, 0xc6, 0x0c, 0x47, 0x4c, 0xfc, 0x48, 0xf3, 0x84, 0x12, 0x40, 0x57, 0x40, 0x25, 0xd4, 0x29,
-	0x65, 0xde, 0xc0, 0xb9, 0x79, 0x57, 0xe7, 0x79, 0xfe, 0x38, 0xa9, 0x28, 0xd5, 0x9f, 0x35, 0xd8,
-	0xd8, 0x7f, 0xdc, 0x6c, 0x1e, 0x32, 0xcc, 0xe2, 0x3d, 0xe2, 0x33, 0x8c, 0x6e, 0x00, 0xb2, 0x03,
-	0xca, 0xb0, 0x47, 0x63, 0x8b, 0xc4, 0xcc, 0xeb, 0x62, 0x46, 0xe2, 0xd2, 0xc6, 0xb6, 0xb2, 0xa3,
-	0x9a, 0x5b, 0x13, 0xe4, 0xf6, 0x04, 0x40, 0xd7, 0x60, 0xcb, 0xc7, 0x31, 0xb3, 0x7a, 0xa1, 0x83,
-	0x19, 0xb1, 0x28, 0xa6, 0x41, 0x2c, 0xea, 0x2a, 0x9a, 0x9b, 0x1c, 0x78, 0x24, 0xec, 0xf7, 0xb9,
-	0x19, 0x5d, 0x05, 0xf0, 0x28, 0x23, 0x94, 0x59, 0xd8, 0x25, 0xa2, 0xb8, 0xa2, 0x99, 0x93, 0x96,
-	0xba, 0x4b, 0xd0, 0x47, 0x50, 0x70, 0x6d, 0xab, 0x33, 0x64, 0x24, 0x16, 0x0e, 0x5c, 0x2e, 0xc5,
-	0xc6, 0xc6, 0x78, 0x54, 0x81, 0x3b, 0xcd, 0x06, 0x37, 0xd7, 0x5d, 0x62, 0x82, 0x6b, 0x4f, 0xd6,
-	0x9c, 0xd0, 0xf7, 0xfa, 0x44, 0xc6, 0x08, 0x29, 0x21, 0x33, 0xc7, 0x2d, 0xc2, 0x23, 0x85, 0xed,
-	0xa0, 0x47, 0x99, 0xd0, 0x4e, 0x02, 0x37, 0xb9, 0x01, 0x5d, 0x86, 0xdc, 0x31, 0x19, 0x26, 0xc1,
-	0xab, 0x02, 0xd5, 0x8f, 0xc9, 0x50, 0xc6, 0x26, 0xa0, 0x0c, 0x5d, 0x4b, 0xc1, 0x34, 0xb2, 0x8f,
-	0xfd, 0x24, 0x52, 0x97, 0x60, 0x1f, 0xfb, 0x69, 0x24, 0x07, 0x65, 0x64, 0x2e, 0x05, 0x65, 0xe4,
-	0xfb, 0x50, 0x48, 0x5a, 0x20, 0x83, 0x41, 0xe0, 0x79, 0x69, 0x93, 0xf1, 0x53, 0x17, 0x49, 0x91,
-	0x9f, 0x75, 0x91, 0x2c, 0x1f, 0xc3, 0xff, 0x63, 0x12, 0xe2, 0x08, 0x33, 0xe2, 0x58, 0x73, 0xce,
-	0x45, 0xe1, 0x7c, 0x31, 0x45, 0x5b, 0x33, 0x51, 0x97, 0x21, 0x17, 0x0f, 0xe3, 0x24, 0x71, 0x41,
-	0x16, 0x16, 0x0f, 0xe3, 0xb4, 0x6a, 0x0e, 0x4a, 0x96, 0xf5, 0x14, 0x94, 0x91, 0x3b, 0x50, 0xc4,
-	0x9d, 0x20, 0x62, 0x56, 0x1c, 0x62, 0x9a, 0x10, 0x6c, 0x0a, 0x9f, 0x0d, 0x61, 0x3f, 0x0c, 0x31,
-	0x15, 0x34, 0xbb, 0x9a, 0x90, 0xd5, 0xaf, 0x1a, 0x5c, 0xe0, 0xb2, 0x7a, 0x40, 0xa2, 0xd8, 0x8b,
-	0x79, 0x05, 0x42, 0x60, 0xff, 0x71, 0x6d, 0xa9, 0x8b, 0xb5, 0xa5, 0x2e, 0xd4, 0x96, 0xba, 0x48,
-	0x5b, 0xea, 0x22, 0x6d, 0xa9, 0x8b, 0xb4, 0xa5, 0x9e, 0xa1, 0x2d, 0xf5, 0x6c, 0x6d, 0xa9, 0x7f,
-	0x47, 0x5b, 0xea, 0xb2, 0xda, 0x52, 0x17, 0x69, 0x4b, 0x5d, 0x42, 0x5b, 0xea, 0x1b, 0xda, 0x9a,
-	0x5e, 0x5b, 0x3f, 0x64, 0x60, 0x4b, 0x5c, 0x85, 0xf5, 0x30, 0xf4, 0x3d, 0xe2, 0x70, 0x75, 0x11,
-	0x74, 0x1d, 0x50, 0x84, 0xbf, 0x62, 0x16, 0x96, 0x46, 0xcb, 0xa3, 0x0e, 0x19, 0x08, 0xbd, 0x68,
-	0x66, 0x91, 0x23, 0x89, 0x77, 0x8b, 0xdb, 0x91, 0x01, 0x17, 0x7c, 0x82, 0x63, 0xf2, 0x9a, 0x7b,
-	0x46, 0xb8, 0x6f, 0x09, 0x68, 0xce, 0xff, 0x31, 0xe4, 0x23, 0x9e, 0xd2, 0x8a, 0xb9, 0x94, 0x85,
-	0x80, 0xf2, 0x37, 0x6b, 0xc6, 0xdb, 0x87, 0xb0, 0xf1, 0x17, 0x27, 0x20, 0x99, 0x27, 0x20, 0x98,
-	0xe4, 0x99, 0x78, 0x08, 0xff, 0x13, 0x55, 0xdb, 0x7e, 0x10, 0x13, 0x67, 0x66, 0x3e, 0x69, 0x4b,
-	0xcc, 0x27, 0xf3, 0x02, 0x8f, 0x6d, 0x8a, 0xd0, 0xd4, 0x38, 0xd3, 0xa8, 0xef, 0x14, 0x28, 0xf2,
-	0x32, 0x3e, 0xe3, 0xb3, 0xf0, 0x31, 0xf6, 0x7b, 0xe4, 0x20, 0x9c, 0x4c, 0x63, 0x65, 0x3a, 0x8d,
-	0xeb, 0x90, 0x9b, 0xe6, 0xcd, 0x2c, 0x3f, 0x17, 0xa7, 0x51, 0xe8, 0x22, 0x64, 0xfb, 0x9c, 0x3f,
-	0x19, 0xf2, 0x72, 0xc3, 0x4f, 0x49, 0x18, 0x91, 0xbe, 0x25, 0x21, 0x4d, 0x40, 0x39, 0x6e, 0x11,
-	0xb5, 0x54, 0xbf, 0xcf, 0xc0, 0x56, 0x5a, 0x9e, 0x94, 0xd3, 0x41, 0x88, 0xbe, 0x80, 0x55, 0x36,
-	0xa0, 0x56, 0xfa, 0x08, 0xd9, 0x7b, 0xb7, 0x47, 0x48, 0xb6, 0x3d, 0xa0, 0xad, 0x3d, 0x33, 0xcb,
-	0x06, 0xb4, 0xe5, 0xa0, 0xf7, 0x60, 0x8d, 0x93, 0xf3, 0x06, 0x64, 0x44, 0x39, 0x3c, 0xd7, 0xa7,
-	0x64, 0x88, 0x0e, 0x60, 0x8b, 0x03, 0xf3, 0x6f, 0x04, 0x6d, 0xf9, 0x5e, 0x6c, 0xb2, 0x01, 0xdd,
-	0x9f, 0x7d, 0x26, 0xcc, 0x35, 0x55, 0xfd, 0x27, 0x4d, 0xad, 0xfe, 0xa8, 0x00, 0xe2, 0xfd, 0x91,
-	0x17, 0xdd, 0xf9, 0x34, 0xe8, 0xdd, 0xb5, 0x50, 0x7d, 0x95, 0x94, 0xdd, 0x0c, 0xba, 0x5d, 0x8f,
-	0x9d, 0x4f, 0xd9, 0x89, 0xa8, 0x33, 0x6f, 0x11, 0xb5, 0xfa, 0x6e, 0xa2, 0xd6, 0xde, 0x2e, 0xea,
-	0xec, 0xeb, 0xa2, 0x0e, 0xa5, 0xa6, 0xeb, 0xfc, 0xf2, 0x3a, 0x97, 0x6f, 0xaf, 0x76, 0xe5, 0x23,
-	0x4e, 0x64, 0x6c, 0x0f, 0xe8, 0xbf, 0x9d, 0xee, 0x95, 0x0a, 0xeb, 0x3c, 0xdf, 0xbd, 0xc0, 0xf5,
-	0x6c, 0xec, 0x1f, 0x84, 0x68, 0x1f, 0xf2, 0xf2, 0xa5, 0x2e, 0x5b, 0xa2, 0x88, 0x66, 0x5f, 0x3f,
-	0xeb, 0x6e, 0x9c, 0xbd, 0x94, 0x4c, 0x78, 0x9a, 0xee, 0xd0, 0x03, 0x28, 0x48, 0x3a, 0x39, 0x7e,
-	0x12, 0x15, 0xde, 0x58, 0x8a, 0x6f, 0xd2, 0x71, 0x53, 0x56, 0x24, 0xb7, 0xe8, 0x10, 0xd6, 0x93,
-	0x47, 0x44, 0x42, 0x29, 0xf5, 0x60, 0x9c, 0x45, 0x39, 0x7f, 0xf0, 0xcc, 0x42, 0x6f, 0x66, 0xcf,
-	0x49, 0x6d, 0xa1, 0xf0, 0x09, 0xa9, 0xb6, 0x1c, 0xe9, 0xfc, 0xb1, 0x30, 0x0b, 0xf6, 0xcc, 0x9e,
-	0x7f, 0xbb, 0x1c, 0x87, 0x09, 0x67, 0x76, 0xb9, 0x6f, 0x9f, 0x53, 0x9b, 0x99, 0xc7, 0xd3, 0x2d,
-	0xba, 0x03, 0x39, 0xc9, 0xc8, 0x06, 0x54, 0x3c, 0x45, 0xf2, 0x37, 0xaf, 0x2d, 0x45, 0x27, 0xa4,
-	0x64, 0xea, 0x38, 0x59, 0xef, 0x6a, 0xa7, 0x27, 0x15, 0xa5, 0x71, 0xed, 0xf4, 0xf7, 0xf2, 0xca,
-	0xe9, 0xb8, 0xac, 0x3c, 0x1b, 0x97, 0x95, 0xe7, 0xe3, 0xb2, 0xf2, 0xdb, 0xb8, 0xac, 0x7c, 0xfd,
-	0xa2, 0xbc, 0xf2, 0xec, 0x45, 0x79, 0xe5, 0xf9, 0x8b, 0xf2, 0xca, 0xe7, 0xfa, 0x84, 0xaa, 0xb3,
-	0x2a, 0xfe, 0x5d, 0xde, 0xfa, 0x33, 0x00, 0x00, 0xff, 0xff, 0x28, 0x30, 0x17, 0xed, 0xc9, 0x0e,
-	0x00, 0x00,
+	// 1523 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x58, 0xcd, 0x6e, 0xdb, 0xc6,
+	0x16, 0x36, 0x7f, 0x64, 0x53, 0x47, 0xb2, 0x2d, 0x8f, 0x7d, 0x6f, 0x74, 0xf3, 0x23, 0xf9, 0x6a,
+	0x71, 0x61, 0xe4, 0x26, 0x52, 0x10, 0x67, 0xe5, 0x45, 0x01, 0xff, 0x04, 0xa9, 0x93, 0x38, 0x76,
+	0x28, 0x25, 0x01, 0x5a, 0xa0, 0xec, 0x98, 0x9c, 0xd2, 0x84, 0xa9, 0x21, 0x43, 0x8e, 0x1c, 0xe9,
+	0x25, 0x8a, 0xa2, 0x40, 0x81, 0xa2, 0x68, 0x80, 0xac, 0xfa, 0x04, 0x5d, 0xf4, 0x11, 0xbc, 0xcc,
+	0xa2, 0x05, 0x82, 0x02, 0x35, 0x5a, 0x67, 0xd3, 0x07, 0xe8, 0x2a, 0xdd, 0x14, 0x33, 0x43, 0x51,
+	0x92, 0x13, 0xdb, 0x52, 0x8c, 0x26, 0xe8, 0x6e, 0xe6, 0xfc, 0x7c, 0xe7, 0xcc, 0xe1, 0x77, 0xe6,
+	0x8c, 0x04, 0x17, 0x63, 0x16, 0x44, 0xd8, 0x25, 0x35, 0x42, 0x5d, 0x8f, 0x92, 0x70, 0xbb, 0xd6,
+	0xdc, 0xb3, 0xed, 0xc5, 0x6a, 0x18, 0x05, 0x2c, 0x40, 0xe7, 0xed, 0xc0, 0xde, 0x8d, 0x02, 0x6c,
+	0xef, 0x54, 0x13, 0xbb, 0x6a, 0xd7, 0xee, 0x7c, 0xb1, 0xc5, 0x3c, 0xbf, 0xb6, 0xe3, 0xdb, 0x35,
+	0xe6, 0x35, 0x49, 0xcc, 0x70, 0x33, 0x94, 0x5e, 0xe7, 0xe7, 0xdc, 0xc0, 0x0d, 0xc4, 0xb2, 0xc6,
+	0x57, 0x52, 0x5a, 0xf9, 0x4a, 0x83, 0x89, 0x46, 0x9b, 0x6e, 0x10, 0x86, 0xd1, 0x7d, 0x50, 0x3d,
+	0xa7, 0xa8, 0xcc, 0x2b, 0x0b, 0xf9, 0x95, 0xe5, 0xfd, 0x83, 0xf2, 0xd8, 0xcf, 0x07, 0xe5, 0x45,
+	0xd7, 0x63, 0x3b, 0xad, 0xed, 0xaa, 0x1d, 0x34, 0x6b, 0x69, 0x58, 0x67, 0xbb, 0xb7, 0xae, 0x85,
+	0xbb, 0x6e, 0x4d, 0x04, 0x6d, 0xb5, 0x3c, 0xa7, 0xfa, 0xe0, 0xc1, 0xfa, 0xda, 0xe1, 0x41, 0x59,
+	0x5d, 0x5f, 0x33, 0x55, 0xcf, 0x41, 0x05, 0xd0, 0x76, 0x49, 0xa7, 0xa8, 0x71, 0x4c, 0x93, 0x2f,
+	0x51, 0x05, 0x32, 0x24, 0x0c, 0xec, 0x9d, 0xa2, 0x3e, 0xaf, 0x2c, 0x64, 0x56, 0xf2, 0xaf, 0x0e,
+	0xca, 0x46, 0xa3, 0x4d, 0x6f, 0x72, 0x99, 0x29, 0x55, 0xe8, 0x2e, 0x4c, 0x3f, 0x89, 0x3c, 0x46,
+	0xac, 0xf4, 0x0c, 0xc5, 0xcc, 0xbc, 0xb2, 0x90, 0xbb, 0x7e, 0xa9, 0xda, 0x3b, 0x3a, 0x8f, 0x59,
+	0xdd, 0xf1, 0xed, 0x6a, 0xa3, 0x6b, 0xb4, 0xa2, 0xf3, 0xa4, 0xcd, 0x29, 0xe1, 0x9b, 0x4a, 0xd1,
+	0x87, 0x30, 0xd9, 0xf4, 0x68, 0x1f, 0x56, 0x76, 0x78, 0xac, 0x7c, 0xd3, 0xa3, 0x3d, 0xa4, 0xff,
+	0x83, 0x11, 0x46, 0x5e, 0x10, 0x79, 0xac, 0x53, 0x1c, 0x17, 0xe9, 0x4f, 0xbf, 0x3a, 0x28, 0xe7,
+	0x1a, 0x6d, 0xba, 0x95, 0x88, 0xcd, 0xd4, 0x00, 0xfd, 0x0f, 0x8c, 0x98, 0x3c, 0x6e, 0x11, 0x6a,
+	0x93, 0xe2, 0x84, 0x30, 0x86, 0x57, 0x07, 0xe5, 0xf1, 0x46, 0x9b, 0xd6, 0xc9, 0x63, 0x33, 0xd5,
+	0x2d, 0x19, 0x5f, 0x3f, 0x2b, 0x8f, 0xfd, 0xf0, 0xac, 0xac, 0xdc, 0xd6, 0x0d, 0xb5, 0xa0, 0xdd,
+	0xd6, 0x0d, 0xa3, 0x90, 0xad, 0x7c, 0x02, 0x68, 0xdd, 0xa5, 0x41, 0x44, 0x9c, 0x3a, 0x79, 0x7c,
+	0xaf, 0xd5, 0x34, 0x31, 0x75, 0x09, 0x9a, 0x87, 0x4c, 0xcc, 0x70, 0xc4, 0xc4, 0x47, 0x1a, 0x04,
+	0x94, 0x0a, 0x74, 0x11, 0x34, 0x42, 0x9d, 0xa2, 0xfa, 0x9a, 0x9e, 0x8b, 0x97, 0x0c, 0x1e, 0xe7,
+	0xf7, 0x67, 0x65, 0xa5, 0xf2, 0xa3, 0x0e, 0x53, 0x1b, 0x0f, 0x57, 0x57, 0xeb, 0x0c, 0xb3, 0x78,
+	0x8d, 0xf8, 0x0c, 0xa3, 0xab, 0x80, 0xec, 0x80, 0x32, 0xec, 0xd1, 0xd8, 0x22, 0x31, 0xf3, 0x9a,
+	0x98, 0x91, 0xb8, 0x38, 0x35, 0xaf, 0x2c, 0x68, 0xe6, 0x4c, 0x57, 0x73, 0xb3, 0xab, 0x40, 0x97,
+	0x61, 0xc6, 0xc7, 0x31, 0xb3, 0x5a, 0xa1, 0x83, 0x19, 0xb1, 0x28, 0xa6, 0x41, 0x2c, 0xf2, 0x2a,
+	0x98, 0xd3, 0x5c, 0xf1, 0x40, 0xc8, 0xef, 0x71, 0x31, 0xba, 0x04, 0xe0, 0x51, 0x46, 0x28, 0xb3,
+	0xb0, 0x4b, 0x44, 0x72, 0x05, 0x33, 0x2b, 0x25, 0xcb, 0x2e, 0x41, 0xd7, 0x20, 0xef, 0xda, 0xd6,
+	0x76, 0x87, 0x91, 0x58, 0x18, 0x70, 0xba, 0x14, 0x56, 0xa6, 0x0e, 0x0f, 0xca, 0x70, 0x6b, 0x75,
+	0x85, 0x8b, 0x97, 0x5d, 0x62, 0x82, 0x6b, 0x77, 0xd7, 0x1c, 0xd0, 0xf7, 0xf6, 0x88, 0xf4, 0x11,
+	0x54, 0x42, 0x66, 0x96, 0x4b, 0x84, 0x45, 0xaa, 0xb6, 0x83, 0x16, 0x65, 0x82, 0x3b, 0x89, 0x7a,
+	0x95, 0x0b, 0xd0, 0x05, 0xc8, 0xee, 0x92, 0x4e, 0xe2, 0x3c, 0x2e, 0xb4, 0xc6, 0x2e, 0xe9, 0x48,
+	0xdf, 0x44, 0x29, 0x5d, 0x27, 0x52, 0x65, 0xea, 0xb9, 0x87, 0xfd, 0xc4, 0xd3, 0x90, 0xca, 0x3d,
+	0xec, 0xa7, 0x9e, 0x5c, 0x29, 0x3d, 0xb3, 0xa9, 0x52, 0x7a, 0xfe, 0x17, 0xf2, 0x49, 0x09, 0xa4,
+	0x33, 0x08, 0x7d, 0x4e, 0xca, 0xa4, 0x7f, 0xcf, 0x44, 0x42, 0xe4, 0xfa, 0x4d, 0x24, 0xca, 0x0d,
+	0xf8, 0x77, 0x4c, 0x42, 0x1c, 0x61, 0x46, 0x1c, 0x6b, 0xc0, 0xb8, 0x20, 0x8c, 0xe7, 0x52, 0xed,
+	0x7a, 0x9f, 0xd7, 0x05, 0xc8, 0xc6, 0x9d, 0x38, 0x09, 0x9c, 0x97, 0x89, 0xc5, 0x9d, 0x38, 0xcd,
+	0x9a, 0x2b, 0x25, 0xca, 0x64, 0xaa, 0x94, 0x9e, 0x0b, 0x50, 0xc0, 0xdb, 0x41, 0xc4, 0xac, 0x38,
+	0xc4, 0x34, 0x01, 0x98, 0x16, 0x36, 0x53, 0x42, 0x5e, 0x0f, 0x31, 0x15, 0x30, 0x4b, 0xba, 0xa0,
+	0xd5, 0x2f, 0x3a, 0xcc, 0x72, 0x5a, 0x6d, 0x91, 0x28, 0xf6, 0x62, 0x9e, 0x81, 0x20, 0xd8, 0x3f,
+	0x9c, 0x5b, 0xda, 0xc9, 0xdc, 0xd2, 0x4e, 0xe4, 0x96, 0x76, 0x12, 0xb7, 0xb4, 0x93, 0xb8, 0xa5,
+	0x9d, 0xc4, 0x2d, 0xed, 0x14, 0x6e, 0x69, 0xa7, 0x73, 0x4b, 0x1b, 0x85, 0x5b, 0xda, 0xb0, 0xdc,
+	0xd2, 0x4e, 0xe2, 0x96, 0x36, 0x04, 0xb7, 0xb4, 0xd7, 0xb8, 0xd5, 0xbb, 0xb6, 0xbe, 0x53, 0x61,
+	0x46, 0x5c, 0x85, 0xcb, 0x61, 0xe8, 0x7b, 0xc4, 0xe1, 0xec, 0x22, 0xe8, 0x0a, 0xa0, 0x08, 0x7f,
+	0xc6, 0x2c, 0x2c, 0x85, 0x96, 0x47, 0x1d, 0xd2, 0x16, 0x7c, 0xd1, 0xcd, 0x02, 0xd7, 0x24, 0xd6,
+	0xeb, 0x5c, 0x8e, 0xaa, 0x30, 0xeb, 0x13, 0x1c, 0x93, 0x23, 0xe6, 0xaa, 0x30, 0x9f, 0x11, 0xaa,
+	0x01, 0xfb, 0x87, 0x90, 0x8b, 0x78, 0x48, 0x2b, 0xe6, 0x54, 0x16, 0x04, 0xca, 0x5d, 0xaf, 0x55,
+	0x8f, 0x1f, 0xc2, 0xd5, 0x37, 0x74, 0x40, 0x32, 0x4f, 0x40, 0x20, 0xc9, 0x9e, 0xb8, 0x0f, 0xff,
+	0x12, 0x59, 0xdb, 0x7e, 0x10, 0x13, 0xa7, 0x6f, 0x3e, 0xe9, 0x43, 0xcc, 0x27, 0x73, 0x96, 0xfb,
+	0xae, 0x0a, 0xd7, 0x54, 0xd8, 0x57, 0xa8, 0x6f, 0x15, 0x28, 0xf0, 0x34, 0x1e, 0xf1, 0x59, 0xf8,
+	0x10, 0xfb, 0x2d, 0xb2, 0x19, 0x76, 0xa7, 0xb1, 0xd2, 0x9b, 0xc6, 0xcb, 0x90, 0xed, 0xc5, 0x55,
+	0x87, 0x9f, 0x8b, 0x3d, 0x2f, 0x34, 0x07, 0x99, 0x3d, 0x8e, 0x9f, 0x0c, 0x79, 0xb9, 0xe1, 0x5d,
+	0x12, 0x46, 0x64, 0xcf, 0x92, 0x2a, 0x5d, 0xa8, 0xb2, 0x5c, 0x22, 0x72, 0xa9, 0x3c, 0x55, 0x61,
+	0x26, 0x4d, 0x4f, 0xd2, 0x69, 0x33, 0x44, 0x1f, 0xc3, 0x38, 0x6b, 0x53, 0x2b, 0x7d, 0x84, 0xac,
+	0x9d, 0xed, 0x11, 0x92, 0x69, 0xb4, 0xe9, 0xfa, 0x9a, 0x99, 0x61, 0x6d, 0xba, 0xee, 0xa0, 0x73,
+	0x30, 0xc1, 0xc1, 0x79, 0x01, 0x54, 0x91, 0x0e, 0x8f, 0x75, 0x87, 0x74, 0xd0, 0x26, 0xcc, 0x70,
+	0xc5, 0xe0, 0x1b, 0x41, 0x1f, 0xbe, 0x16, 0xd3, 0xac, 0x4d, 0x37, 0xfa, 0x9f, 0x09, 0x03, 0x45,
+	0xd5, 0xde, 0xa6, 0xa8, 0x95, 0xef, 0x15, 0x40, 0xbc, 0x3e, 0xf2, 0xa2, 0x7b, 0x37, 0x05, 0x3a,
+	0x3b, 0x17, 0x2a, 0x7f, 0x26, 0x69, 0xaf, 0x06, 0xcd, 0xa6, 0xc7, 0xde, 0x4d, 0xda, 0x09, 0xa9,
+	0xd5, 0x63, 0x48, 0xad, 0x9d, 0x8d, 0xd4, 0xfa, 0xf1, 0xa4, 0xce, 0x1c, 0x25, 0x75, 0x28, 0x39,
+	0xbd, 0xcc, 0x2f, 0xaf, 0x77, 0x72, 0xf6, 0x4a, 0x53, 0x3e, 0xe2, 0x44, 0xc4, 0x46, 0x9b, 0xfe,
+	0xdd, 0xe1, 0xfe, 0xc8, 0xc0, 0x24, 0x8f, 0x77, 0x37, 0x70, 0x3d, 0x1b, 0xfb, 0x9b, 0x21, 0xda,
+	0x80, 0x9c, 0x7c, 0xa9, 0xcb, 0x92, 0x28, 0xa2, 0xd8, 0x57, 0x4e, 0xbb, 0x1b, 0xfb, 0x2f, 0x25,
+	0x13, 0x9e, 0xa4, 0x3b, 0xb4, 0x05, 0x79, 0x09, 0x27, 0xc7, 0x4f, 0xc2, 0xc2, 0xab, 0x43, 0xe1,
+	0x75, 0x2b, 0x6e, 0xca, 0x8c, 0xe4, 0x16, 0xd5, 0x61, 0x32, 0x79, 0x44, 0x24, 0x90, 0x92, 0x0f,
+	0xd5, 0xd3, 0x20, 0x07, 0x1b, 0xcf, 0xcc, 0xb7, 0xfa, 0xf6, 0x1c, 0xd4, 0x16, 0x0c, 0xef, 0x82,
+	0xea, 0xc3, 0x81, 0x0e, 0xb6, 0x85, 0x99, 0xb7, 0xfb, 0xf6, 0xfc, 0xec, 0x72, 0x1c, 0x26, 0x98,
+	0x99, 0xe1, 0xce, 0x3e, 0xc0, 0x36, 0x33, 0x87, 0x7b, 0x5b, 0x74, 0x0b, 0xb2, 0x12, 0x91, 0xb5,
+	0xa9, 0x78, 0x8a, 0xe4, 0xae, 0x5f, 0x1e, 0x0a, 0x4e, 0x50, 0xc9, 0x34, 0x70, 0xb2, 0x46, 0x5b,
+	0x90, 0xb3, 0x7d, 0x82, 0x23, 0x4b, 0x4c, 0x2f, 0xf1, 0x70, 0x39, 0x65, 0x02, 0xde, 0x0b, 0xa8,
+	0x38, 0x30, 0xf7, 0x12, 0xf3, 0x9a, 0x7f, 0x68, 0x3b, 0xdd, 0xa1, 0x3a, 0xe4, 0x23, 0xb2, 0x47,
+	0x22, 0x96, 0x40, 0x1a, 0x02, 0xf2, 0xda, 0x10, 0x90, 0xa6, 0x70, 0xeb, 0x62, 0xe6, 0xa2, 0xde,
+	0x96, 0xa7, 0x89, 0x1d, 0xc7, 0x8a, 0x63, 0x86, 0xb7, 0x7d, 0x92, 0xfc, 0xcc, 0x1b, 0x26, 0xcd,
+	0x65, 0xc7, 0xa9, 0xd7, 0x1b, 0xdc, 0x89, 0xa7, 0x89, 0x1d, 0xa7, 0x2e, 0x21, 0x96, 0xf4, 0x7d,
+	0x3e, 0x4b, 0x3f, 0x57, 0x60, 0xf6, 0x0d, 0x07, 0x1a, 0xbc, 0x67, 0x94, 0xb7, 0xba, 0x67, 0xf8,
+	0x03, 0x89, 0xff, 0x6e, 0xeb, 0x1b, 0x4b, 0x86, 0x10, 0xf0, 0xc1, 0x74, 0x0e, 0x26, 0x08, 0x75,
+	0xac, 0xde, 0x0f, 0xe8, 0x71, 0x42, 0x9d, 0x3b, 0xa4, 0x53, 0xf9, 0x49, 0x81, 0xb9, 0x37, 0x95,
+	0xe3, 0xbd, 0x65, 0x84, 0xd6, 0x20, 0xc7, 0x70, 0xe4, 0x12, 0x26, 0x46, 0xe8, 0x28, 0xd3, 0x13,
+	0xa4, 0x1f, 0x17, 0x57, 0xbe, 0x54, 0xd3, 0x42, 0xf7, 0x7f, 0x92, 0xf7, 0x77, 0xac, 0x15, 0x00,
+	0xe9, 0x35, 0xea, 0xa9, 0x64, 0x30, 0x2e, 0x45, 0x1f, 0x80, 0xc1, 0xc1, 0x05, 0xc2, 0x08, 0xff,
+	0x62, 0xf0, 0x8c, 0x44, 0x51, 0xbe, 0x51, 0x61, 0x32, 0xfd, 0xd8, 0x76, 0x10, 0x39, 0xa8, 0x31,
+	0xd8, 0x8e, 0xb2, 0x20, 0x8b, 0x23, 0xb5, 0xa3, 0x44, 0x1a, 0x68, 0xc9, 0x47, 0x47, 0x5a, 0x52,
+	0xde, 0xbd, 0x37, 0x46, 0x6b, 0xc9, 0x04, 0x77, 0xa0, 0x2d, 0x1b, 0x83, 0x6d, 0xa9, 0x0d, 0x9d,
+	0x6e, 0x8f, 0x03, 0xdd, 0x74, 0x5f, 0x6b, 0xcd, 0xff, 0xc0, 0xb9, 0x63, 0xce, 0x56, 0xf9, 0x14,
+	0x8a, 0xc7, 0xe5, 0x77, 0x94, 0xae, 0xca, 0xdb, 0xd1, 0xf5, 0xa9, 0x92, 0x46, 0x3f, 0x9a, 0xea,
+	0x11, 0xe6, 0x28, 0x67, 0x66, 0x8e, 0x3a, 0x3a, 0x73, 0x56, 0x2e, 0xef, 0xff, 0x56, 0x1a, 0xdb,
+	0x3f, 0x2c, 0x29, 0xcf, 0x0f, 0x4b, 0xca, 0x8b, 0xc3, 0x92, 0xf2, 0xeb, 0x61, 0x49, 0xf9, 0xe2,
+	0x65, 0x69, 0xec, 0xf9, 0xcb, 0xd2, 0xd8, 0x8b, 0x97, 0xa5, 0xb1, 0x8f, 0x8c, 0x6e, 0xc9, 0xb7,
+	0xc7, 0xc5, 0xdf, 0x81, 0x8b, 0x7f, 0x05, 0x00, 0x00, 0xff, 0xff, 0x5d, 0x94, 0x5e, 0xa9, 0x7a,
+	0x14, 0x00, 0x00,
 }
 
 func (this *IgnoredSeqNumRange) Equal(that interface{}) bool {
@@ -1602,6 +1873,42 @@ func (m *MVCCLogicalOp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.AddSstable != nil {
+		{
+			size, err := m.AddSstable.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMvcc3(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	if m.RevertRange != nil {
+		{
+			size, err := m.RevertRange.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMvcc3(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x42
+	}
+	if m.ClearRange != nil {
+		{
+			size, err := m.ClearRange.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMvcc3(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x3a
+	}
 	if m.AbortTxn != nil {
 		{
 			size, err := m.AbortTxn.MarshalToSizedBuffer(dAtA[:i])
@@ -1674,6 +1981,335 @@ func (m *MVCCLogicalOp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xa
 	}
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCClearRangeOp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCClearRangeOp) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCClearRangeOp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.EndKey) > 0 {
+		i -= len(m.EndKey)
+		copy(dAtA[i:], m.EndKey)
+		i = encodeVarintMvcc3(dAtA, i, uint64(len(m.EndKey)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.StartKey) > 0 {
+		i -= len(m.StartKey)
+		copy(dAtA[i:], m.StartKey)
+		i = encodeVarintMvcc3(dAtA, i, uint64(len(m.StartKey)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Timestamp.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCRevertRangeOp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCRevertRangeOp) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCRevertRangeOp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	{
+		size, err := m.TargetTime.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	if len(m.EndKey) > 0 {
+		i -= len(m.EndKey)
+		copy(dAtA[i:], m.EndKey)
+		i = encodeVarintMvcc3(dAtA, i, uint64(len(m.EndKey)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.StartKey) > 0 {
+		i -= len(m.StartKey)
+		copy(dAtA[i:], m.StartKey)
+		i = encodeVarintMvcc3(dAtA, i, uint64(len(m.StartKey)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Timestamp.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCAddSSTableOp) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCAddSSTableOp) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCAddSSTableOp) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	{
+		size, err := m.EndTime.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x2a
+	{
+		size, err := m.StartTime.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x22
+	if len(m.EndKey) > 0 {
+		i -= len(m.EndKey)
+		copy(dAtA[i:], m.EndKey)
+		i = encodeVarintMvcc3(dAtA, i, uint64(len(m.EndKey)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.StartKey) > 0 {
+		i -= len(m.StartKey)
+		copy(dAtA[i:], m.StartKey)
+		i = encodeVarintMvcc3(dAtA, i, uint64(len(m.StartKey)))
+		i--
+		dAtA[i] = 0x12
+	}
+	{
+		size, err := m.Timestamp.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCRecord) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCRecord) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCRecord) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.AddSstable != nil {
+		{
+			size, err := m.AddSstable.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMvcc3(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.RevertRange != nil {
+		{
+			size, err := m.RevertRange.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMvcc3(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.ClearRange != nil {
+		{
+			size, err := m.ClearRange.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintMvcc3(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCClearRangeRecord) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCClearRangeRecord) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCClearRangeRecord) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCRevertRangeRecord) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCRevertRangeRecord) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCRevertRangeRecord) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	{
+		size, err := m.TargetTime.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
+	return len(dAtA) - i, nil
+}
+
+func (m *NonMVCCAddSSTableRecord) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *NonMVCCAddSSTableRecord) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *NonMVCCAddSSTableRecord) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	{
+		size, err := m.EndTime.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0x12
+	{
+		size, err := m.StartTime.MarshalToSizedBuffer(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarintMvcc3(dAtA, i, uint64(size))
+	}
+	i--
+	dAtA[i] = 0xa
 	return len(dAtA) - i, nil
 }
 
@@ -2200,6 +2836,135 @@ func (m *MVCCLogicalOp) Size() (n int) {
 		l = m.AbortTxn.Size()
 		n += 1 + l + sovMvcc3(uint64(l))
 	}
+	if m.ClearRange != nil {
+		l = m.ClearRange.Size()
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	if m.RevertRange != nil {
+		l = m.RevertRange.Size()
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	if m.AddSstable != nil {
+		l = m.AddSstable.Size()
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	return n
+}
+
+func (m *NonMVCCClearRangeOp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Timestamp.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	l = len(m.StartKey)
+	if l > 0 {
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	l = len(m.EndKey)
+	if l > 0 {
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	return n
+}
+
+func (m *NonMVCCRevertRangeOp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Timestamp.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	l = len(m.StartKey)
+	if l > 0 {
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	l = len(m.EndKey)
+	if l > 0 {
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	l = m.TargetTime.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	return n
+}
+
+func (m *NonMVCCAddSSTableOp) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.Timestamp.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	l = len(m.StartKey)
+	if l > 0 {
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	l = len(m.EndKey)
+	if l > 0 {
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	l = m.StartTime.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	l = m.EndTime.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	return n
+}
+
+func (m *NonMVCCRecord) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.ClearRange != nil {
+		l = m.ClearRange.Size()
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	if m.RevertRange != nil {
+		l = m.RevertRange.Size()
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	if m.AddSstable != nil {
+		l = m.AddSstable.Size()
+		n += 1 + l + sovMvcc3(uint64(l))
+	}
+	return n
+}
+
+func (m *NonMVCCClearRangeRecord) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *NonMVCCRevertRangeRecord) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.TargetTime.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	return n
+}
+
+func (m *NonMVCCAddSSTableRecord) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.StartTime.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
+	l = m.EndTime.Size()
+	n += 1 + l + sovMvcc3(uint64(l))
 	return n
 }
 
@@ -2228,6 +2993,15 @@ func (this *MVCCLogicalOp) GetValue() interface{} {
 	if this.AbortTxn != nil {
 		return this.AbortTxn
 	}
+	if this.ClearRange != nil {
+		return this.ClearRange
+	}
+	if this.RevertRange != nil {
+		return this.RevertRange
+	}
+	if this.AddSstable != nil {
+		return this.AddSstable
+	}
 	return nil
 }
 
@@ -2245,6 +3019,38 @@ func (this *MVCCLogicalOp) SetValue(value interface{}) bool {
 		this.AbortIntent = vt
 	case *MVCCAbortTxnOp:
 		this.AbortTxn = vt
+	case *NonMVCCClearRangeOp:
+		this.ClearRange = vt
+	case *NonMVCCRevertRangeOp:
+		this.RevertRange = vt
+	case *NonMVCCAddSSTableOp:
+		this.AddSstable = vt
+	default:
+		return false
+	}
+	return true
+}
+func (this *NonMVCCRecord) GetValue() interface{} {
+	if this.ClearRange != nil {
+		return this.ClearRange
+	}
+	if this.RevertRange != nil {
+		return this.RevertRange
+	}
+	if this.AddSstable != nil {
+		return this.AddSstable
+	}
+	return nil
+}
+
+func (this *NonMVCCRecord) SetValue(value interface{}) bool {
+	switch vt := value.(type) {
+	case *NonMVCCClearRangeRecord:
+		this.ClearRange = vt
+	case *NonMVCCRevertRangeRecord:
+		this.RevertRange = vt
+	case *NonMVCCAddSSTableRecord:
+		this.AddSstable = vt
 	default:
 		return false
 	}
@@ -4523,6 +5329,1073 @@ func (m *MVCCLogicalOp) Unmarshal(dAtA []byte) error {
 				m.AbortTxn = &MVCCAbortTxnOp{}
 			}
 			if err := m.AbortTxn.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClearRange", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ClearRange == nil {
+				m.ClearRange = &NonMVCCClearRangeOp{}
+			}
+			if err := m.ClearRange.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RevertRange", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RevertRange == nil {
+				m.RevertRange = &NonMVCCRevertRangeOp{}
+			}
+			if err := m.RevertRange.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AddSstable", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AddSstable == nil {
+				m.AddSstable = &NonMVCCAddSSTableOp{}
+			}
+			if err := m.AddSstable.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCClearRangeOp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCClearRangeOp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCClearRangeOp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Timestamp.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StartKey = append(m.StartKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.StartKey == nil {
+				m.StartKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EndKey = append(m.EndKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.EndKey == nil {
+				m.EndKey = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCRevertRangeOp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCRevertRangeOp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCRevertRangeOp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Timestamp.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StartKey = append(m.StartKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.StartKey == nil {
+				m.StartKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EndKey = append(m.EndKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.EndKey == nil {
+				m.EndKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.TargetTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCAddSSTableOp) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCAddSSTableOp: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCAddSSTableOp: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.Timestamp.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.StartKey = append(m.StartKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.StartKey == nil {
+				m.StartKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndKey", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.EndKey = append(m.EndKey[:0], dAtA[iNdEx:postIndex]...)
+			if m.EndKey == nil {
+				m.EndKey = []byte{}
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.StartTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.EndTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCRecord) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCRecord: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCRecord: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClearRange", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.ClearRange == nil {
+				m.ClearRange = &NonMVCCClearRangeRecord{}
+			}
+			if err := m.ClearRange.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RevertRange", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RevertRange == nil {
+				m.RevertRange = &NonMVCCRevertRangeRecord{}
+			}
+			if err := m.RevertRange.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AddSstable", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.AddSstable == nil {
+				m.AddSstable = &NonMVCCAddSSTableRecord{}
+			}
+			if err := m.AddSstable.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCClearRangeRecord) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCClearRangeRecord: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCClearRangeRecord: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCRevertRangeRecord) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCRevertRangeRecord: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCRevertRangeRecord: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TargetTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.TargetTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipMvcc3(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *NonMVCCAddSSTableRecord) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowMvcc3
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: NonMVCCAddSSTableRecord: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: NonMVCCAddSSTableRecord: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.StartTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field EndTime", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowMvcc3
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthMvcc3
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.EndTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

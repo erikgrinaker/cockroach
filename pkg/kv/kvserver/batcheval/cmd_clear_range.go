@@ -110,7 +110,10 @@ func ClearRange(
 	// If the total size of data to be cleared is less than
 	// clearRangeBytesThreshold, clear the individual values with an iterator,
 	// instead of using a range tombstone (inefficient for small ranges).
-	if total := statsDelta.Total(); total < ClearRangeBytesThreshold {
+	//
+	// FIXME(erikgrinaker): Should we support this? If so, we'll need to write
+	// a non-MVCC operation marker.
+	/*if total := statsDelta.Total(); total < ClearRangeBytesThreshold {
 		log.VEventf(ctx, 2, "delta=%d < threshold=%d; using non-range clear", total, ClearRangeBytesThreshold)
 		iter := readWriter.NewMVCCIterator(storage.MVCCKeyAndIntentsIterKind, storage.IterOptions{
 			LowerBound: from,
@@ -121,9 +124,9 @@ func ClearRange(
 			return result.Result{}, err
 		}
 		return pd, nil
-	}
+	}*/
 
-	if err := readWriter.ClearMVCCRangeAndIntents(from, to); err != nil {
+	if err := readWriter.ClearMVCCRangeAndIntents(cArgs.Header.Timestamp, from, to); err != nil {
 		return result.Result{}, err
 	}
 	return pd, nil

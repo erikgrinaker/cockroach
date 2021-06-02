@@ -291,10 +291,55 @@ message MVCCAbortTxnOp {
 message MVCCLogicalOp {
   option (gogoproto.onlyone) = true;
 
-  MVCCWriteValueOp   write_value   = 1;
-  MVCCWriteIntentOp  write_intent  = 2;
-  MVCCUpdateIntentOp update_intent = 3;
-  MVCCCommitIntentOp commit_intent = 4;
-  MVCCAbortIntentOp  abort_intent  = 5;
-  MVCCAbortTxnOp     abort_txn     = 6;
+  MVCCWriteValueOp     write_value   = 1;
+  MVCCWriteIntentOp    write_intent  = 2;
+  MVCCUpdateIntentOp   update_intent = 3;
+  MVCCCommitIntentOp   commit_intent = 4;
+  MVCCAbortIntentOp    abort_intent  = 5;
+  MVCCAbortTxnOp       abort_txn     = 6;
+  NonMVCCClearRangeOp  clear_range   = 7;
+  NonMVCCRevertRangeOp revert_range  = 8;
+  NonMVCCAddSSTableOp  add_sstable   = 9;
+}
+
+// TODO(erikgrinaker): Should use roachpb.Span, but causes circular import.
+message NonMVCCClearRangeOp {
+  util.hlc.Timestamp timestamp = 1 [(gogoproto.nullable) = false];
+  bytes              start_key = 2;
+  bytes              end_key   = 3;
+}
+
+message NonMVCCRevertRangeOp {
+  util.hlc.Timestamp timestamp   = 1 [(gogoproto.nullable) = false];
+  bytes              start_key   = 2;
+  bytes              end_key     = 3;
+  util.hlc.Timestamp target_time = 4 [(gogoproto.nullable) = false];
+}
+
+message NonMVCCAddSSTableOp {
+  util.hlc.Timestamp timestamp  = 1 [(gogoproto.nullable) = false];
+  bytes              start_key  = 2;
+  bytes              end_key    = 3;
+  util.hlc.Timestamp start_time = 4 [(gogoproto.nullable) = false];
+  util.hlc.Timestamp end_time   = 5 [(gogoproto.nullable) = false];
+}
+
+// NonMVCCRecord is a union of all non-MVCC record types.
+message NonMVCCRecord {
+  option (gogoproto.onlyone) = true;
+
+  NonMVCCClearRangeRecord  clear_range  = 1;
+  NonMVCCRevertRangeRecord revert_range = 2;
+  NonMVCCAddSSTableRecord  add_sstable  = 3;
+}
+
+message NonMVCCClearRangeRecord {}
+
+message NonMVCCRevertRangeRecord {
+  util.hlc.Timestamp target_time = 1 [(gogoproto.nullable) = false];
+}
+
+message NonMVCCAddSSTableRecord {
+  util.hlc.Timestamp start_time = 1 [(gogoproto.nullable) = false];
+  util.hlc.Timestamp end_time   = 2 [(gogoproto.nullable) = false];
 }

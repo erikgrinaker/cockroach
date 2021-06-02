@@ -148,6 +148,8 @@ var (
 	// transaction records. The additional detail is the transaction id.
 	LocalTransactionSuffix = roachpb.RKey("txn-")
 
+	LocalNonMVCCPrefix = roachpb.Key(makeKey(LocalPrefix, roachpb.RKey("nmvcc")))
+
 	// 4. Store local keys
 	//
 	// LocalStorePrefix is the prefix identifying per-store data.

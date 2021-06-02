@@ -44,6 +44,12 @@ const (
 	MVCCCommitIntentOpType
 	// MVCCAbortIntentOpType corresponds to the MVCCAbortIntentOp variant.
 	MVCCAbortIntentOpType
+	// NonMVCCClearRangeOpType corresponds to the NonMVCCClearRangeOp variant.
+	NonMVCCClearRangeOpType
+	// NonMVCCRevertRangeOpType corresponds to the NonMVCCRevertRangeOp variant.
+	NonMVCCRevertRangeOpType
+	// NonMVCCAddSSTableOpType corresponds to the NonMVCCAddSSTableOp variant.
+	NonMVCCAddSSTableOpType
 )
 
 // MVCCLogicalOpDetails contains details about the occurrence of an MVCC logical
@@ -52,6 +58,7 @@ type MVCCLogicalOpDetails struct {
 	Txn       enginepb.TxnMeta
 	Key       roachpb.Key
 	Timestamp hlc.Timestamp
+	NonMVCC   NonMVCCLogicalOpDetails
 
 	// Safe indicates that the values in this struct will never be invalidated
 	// at a later point. If the details object cannot promise that its values
@@ -59,6 +66,12 @@ type MVCCLogicalOpDetails struct {
 	// references before adding it to the log. TestMVCCOpLogWriter fails without
 	// this.
 	Safe bool
+}
+
+type NonMVCCLogicalOpDetails struct {
+	EndKey    roachpb.Key
+	StartTime hlc.Timestamp
+	EndTime   hlc.Timestamp
 }
 
 // OpLoggerBatch records a log of logical MVCC operations.
@@ -132,6 +145,16 @@ func (ol *OpLoggerBatch) logLogicalOp(op MVCCLogicalOpType, details MVCCLogicalO
 	case MVCCAbortIntentOpType:
 		ol.recordOp(&enginepb.MVCCAbortIntentOp{
 			TxnID: details.Txn.ID,
+		})
+	case NonMVCCClearRangeOpType:
+		if !details.Safe {
+			ol.opsAlloc, details.Key = ol.opsAlloc.Copy(details.Key, 0)
+			ol.opsAlloc, details.NonMVCC.EndKey = ol.opsAlloc.Copy(details.NonMVCC.EndKey, 0)
+		}
+		ol.recordOp(&enginepb.NonMVCCClearRangeOp{
+			StartKey:  details.Key,
+			EndKey:    details.NonMVCC.EndKey,
+			Timestamp: details.Timestamp,
 		})
 	default:
 		panic(fmt.Sprintf("unexpected op type %v", op))

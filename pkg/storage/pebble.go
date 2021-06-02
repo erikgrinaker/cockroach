@@ -821,8 +821,8 @@ func (p *Pebble) ClearRawRange(start, end roachpb.Key) error {
 }
 
 // ClearMVCCRangeAndIntents implements the Engine interface.
-func (p *Pebble) ClearMVCCRangeAndIntents(start, end roachpb.Key) error {
-	_, err := p.wrappedIntentWriter.ClearMVCCRangeAndIntents(start, end, nil)
+func (p *Pebble) ClearMVCCRangeAndIntents(ts hlc.Timestamp, start, end roachpb.Key) error {
+	_, err := p.wrappedIntentWriter.ClearMVCCRangeAndIntents(ts, start, end, nil)
 	return err
 
 }
@@ -1481,7 +1481,7 @@ func (p *pebbleReadOnly) ClearRawRange(start, end roachpb.Key) error {
 	panic("not implemented")
 }
 
-func (p *pebbleReadOnly) ClearMVCCRangeAndIntents(start, end roachpb.Key) error {
+func (p *pebbleReadOnly) ClearMVCCRangeAndIntents(ts hlc.Timestamp, start, end roachpb.Key) error {
 	panic("not implemented")
 }
 

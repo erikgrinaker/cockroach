@@ -16,6 +16,7 @@ import (
 	"io"
 
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
+	"github.com/cockroachdb/cockroach/pkg/util/hlc"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble/sstable"
@@ -94,7 +95,7 @@ func (fw *SSTWriter) ClearRawRange(start, end roachpb.Key) error {
 }
 
 // ClearMVCCRangeAndIntents implements the Writer interface.
-func (fw *SSTWriter) ClearMVCCRangeAndIntents(start, end roachpb.Key) error {
+func (fw *SSTWriter) ClearMVCCRangeAndIntents(ts hlc.Timestamp, start, end roachpb.Key) error {
 	panic("ClearMVCCRangeAndIntents is unsupported")
 }
 

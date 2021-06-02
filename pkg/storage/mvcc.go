@@ -857,6 +857,14 @@ func newMVCCIterator(reader Reader, inlineMeta bool, opts IterOptions) MVCCItera
 func MVCCGet(
 	ctx context.Context, reader Reader, key roachpb.Key, timestamp hlc.Timestamp, opts MVCCGetOptions,
 ) (*roachpb.Value, *roachpb.Intent, error) {
+	// FIXME(erikgrinaker): Checking for non-MVCC operation conflicts should
+	// really be done in the iterator, but that might require checking it on
+	// every seek since the span isn't always predeclared on construction. We
+	// check it here for now, and don't worry about concurrent non-MVCC
+	// operations since we assume we're reading from an LSM snapshot.
+	if err := checkNonMVCCConflict(ctx, reader, key, nil, timestamp); err != nil {
+		return nil, nil, err
+	}
 	iter := newMVCCIterator(reader, timestamp.IsEmpty(), IterOptions{Prefix: true})
 	defer iter.Close()
 	value, intent, err := mvccGet(ctx, iter, key, timestamp, opts)
@@ -3942,4 +3950,40 @@ func checkForKeyCollisionsGo(
 	}
 
 	return skippedKVStats, nil
+}
+
+func checkNonMVCCConflict(
+	ctx context.Context, reader Reader, start, end roachpb.Key, timestamp hlc.Timestamp,
+) error {
+	span := roachpb.Span{Key: start, EndKey: end}
+	iter := reader.NewEngineIterator(IterOptions{
+		LowerBound: keys.NonMVCCKey(timestamp, start, end),
+		UpperBound: keys.LocalNonMVCCPrefix.PrefixEnd(),
+	})
+	defer iter.Close()
+	var record enginepb.NonMVCCRecord
+	valid, err := iter.SeekEngineKeyGE(EngineKey{Key: keys.NonMVCCKey(timestamp, start, nil)})
+	for ; valid; valid, err = iter.NextEngineKey() {
+		if err = protoutil.Unmarshal(iter.UnsafeValue(), &record); err != nil {
+			return err
+		}
+		recordKey, err := iter.UnsafeEngineKey()
+		if err != nil {
+			return err
+		}
+		recordTS, recordStartKey, recordEndKey, err := keys.DecodeNonMVCCKey(recordKey.Key)
+		if err != nil {
+			return err
+		}
+		if cr := record.ClearRange; cr != nil {
+			recordSpan := roachpb.Span{Key: recordStartKey, EndKey: recordEndKey}
+			if recordSpan.Overlaps(span) {
+				return errors.Errorf("key span %v has been cleared by ClearRange at %v",
+					recordSpan, recordTS)
+			}
+		} else {
+			return errors.Errorf("unexpected non-MVCC record: %v", record)
+		}
+	}
+	return err
 }

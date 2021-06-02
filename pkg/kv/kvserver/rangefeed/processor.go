@@ -582,6 +582,12 @@ func (p *Processor) consumeLogicalOps(ctx context.Context, ops []enginepb.MVCCLo
 		case *enginepb.MVCCAbortTxnOp:
 			// No updates to publish.
 
+		case *enginepb.NonMVCCClearRangeOp:
+			p.reg.DisconnectWithErr(roachpb.Span{
+				Key:    t.StartKey,
+				EndKey: t.EndKey,
+			}, roachpb.NewErrorf("range cleared at %v", t.Timestamp))
+
 		default:
 			panic(errors.AssertionFailedf("unknown logical op %T", t))
 		}

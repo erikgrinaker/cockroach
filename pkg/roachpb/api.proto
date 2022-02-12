@@ -359,6 +359,18 @@ message DeleteRangeRequest {
   // development, and have severe limitations including being ignored by all
   // KV and MVCC APIs and only being stored in memory.
   bool use_experimental_range_tombstone = 5;
+  // If given, only visibile (non-tombstone) keys that were written after the
+  // given timestamp will be removed. This exists specifically for the IMPORT
+  // INTO rollback use-case, where we want to delete keys that were written by
+  // the import (i.e. after it began).
+  //
+  // NB: This will not check whether the matching keys were new or an update of
+  // an existing key from before the timestamp: it will delete a key that
+  // existed before the timestamp if it was updated after the timestamp. It is
+  // up to the caller to make sure all keys are new if necessary.
+  //
+  // Requires UseExperimentalRangeTombstone to be enabled.
+  util.hlc.Timestamp newer_than = 6 [(gogoproto.nullable) = false];
 }
 
 // A DeleteRangeResponse is the return value from the DeleteRange()

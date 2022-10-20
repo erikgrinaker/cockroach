@@ -1281,7 +1281,14 @@ func (*IncrementRequest) flags() flag {
 }
 
 func (*DeleteRequest) flags() flag {
-	return isWrite | isTxn | isLocking | isIntentWrite | appliesTSCache | canBackpressure
+	// DeleteRequest returns a FoundKey boolean indicating whether an existing key
+	// was deleted, in order to return the number of rows affected by DELETE
+	// queries. We must therefore set isRead, to ensure the returned FoundKey is
+	// evaluated above a newer key in the case of a write-write conflict, which
+	// prohibits deferred WriteTooOld handling. However, isIntentWrite allows
+	// omitting needsRefresh. For background, see:
+	// https://github.com/cockroachdb/cockroach/pull/89375
+	return isRead | isWrite | isTxn | isLocking | isIntentWrite | appliesTSCache | canBackpressure
 }
 
 func (drr *DeleteRangeRequest) flags() flag {

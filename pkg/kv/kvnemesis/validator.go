@@ -23,7 +23,9 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/kv/kvserver/liveness"
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
 	"github.com/cockroachdb/cockroach/pkg/storage"
+	"github.com/cockroachdb/cockroach/pkg/storage/enginepb"
 	"github.com/cockroachdb/cockroach/pkg/util/hlc"
+	"github.com/cockroachdb/cockroach/pkg/util/protoutil"
 	"github.com/cockroachdb/errors"
 	"github.com/cockroachdb/pebble"
 )
@@ -561,7 +563,15 @@ func (v *validator) processOp(op Operation) {
 		}
 		v.buffering = bufferingBatchOrTxn
 		for _, op := range ops {
-			v.processOp(op)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("XXX recovered panic for op %s\n", op)
+						panic(r)
+					}
+				}()
+				v.processOp(op)
+			}()
 		}
 		v.checkAtomic(`txn`, t.Result)
 	case *SplitOperation:
@@ -1111,6 +1121,11 @@ func mustGetStringValue(value []byte) string {
 	}
 	b, err := v.Value.GetBytes()
 	if err != nil {
+		var meta enginepb.MVCCMetadata
+		if err := protoutil.Unmarshal(v.Value.RawBytes, &meta); err == nil {
+			fmt.Printf("XXX found metadata: %s\n", &meta)
+		}
+		fmt.Printf("XXX %s\n", v)
 		panic(errors.Wrapf(err, "decoding %x", value))
 	}
 	return string(b)

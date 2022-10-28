@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"sort"
 	"sync"
 
@@ -36,8 +37,8 @@ const kvLenSize = 8
 var maxItersBeforeSeek = util.ConstantWithMetamorphicTestRange(
 	"mvcc-max-iters-before-seek",
 	10, /* defaultValue */
-	0,  /* min */
-	3,  /* max */
+	10, /* min */
+	10, /* max */
 )
 
 // Struct to store MVCCScan / MVCCGet in the same binary format as that
@@ -88,6 +89,19 @@ func (p *pebbleResults) clear() {
 func (p *pebbleResults) put(
 	ctx context.Context, key []byte, value []byte, memAccount *mon.BoundAccount, maxNewSize int,
 ) error {
+	if false {
+		k, _, err := enginepb.DecodeKey(key)
+		if err != nil {
+			return errors.Wrap(err, "DecodeKey")
+		}
+		v := roachpb.Value{RawBytes: value}
+		if err := v.VerifyHeader(); err != nil {
+			return errors.Wrap(err, "VerifyHeader")
+		}
+		if err := v.Verify(k); err != nil {
+			return errors.Wrap(err, "Verify")
+		}
+	}
 	const minSize = 16
 	const maxSize = 128 << 20 // 128 MB
 
@@ -469,6 +483,17 @@ func (p *pebbleMVCCScanner) scan(
 		return nil, 0, 0, errors.AssertionFailedf("cannot use wholeRows without trackLastOffsets")
 	}
 	p.isGet = false
+
+	/*p.parent.SeekGE(MVCCKey{Key: p.start})
+	if ok, _ := p.parent.Valid(); ok {
+		p.enablePointSynthesis()
+	}*/
+
+	// NB: The ReverseScan start key is "\xec\x129193e69eac56eaa4\x00\x01", but
+	// there's a range split at "\xec\x12bddc98c083d4eab4\x00\x01".
+	if p.reverse && string(p.start) == "\xec\x12bddc98c083d4eab4\x00\x01" && string(p.end) == "\xec\x12de7a223397949683\x00\x01" {
+		fmt.Println("breakpoint")
+	}
 
 	// The iterator may already be positioned on a range key that the seek hits,
 	// in which case RangeKeyChanged() wouldn't fire, so we enable point synthesis

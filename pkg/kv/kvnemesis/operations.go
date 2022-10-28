@@ -230,6 +230,9 @@ func (op ScanOperation) format(w *strings.Builder, fctx formatCtx) {
 	if fctx.receiver == `b` {
 		maxRowsArg = ``
 	}
+	if op.Reverse {
+		fmt.Printf("XXX ReverseScan: %q-%q\n", op.Key, op.EndKey)
+	}
 	fmt.Fprintf(w, `%s.%s(ctx, %s, %s%s)`, fctx.receiver, methodName, roachpb.Key(op.Key), roachpb.Key(op.EndKey), maxRowsArg)
 	op.Result.format(w)
 }
@@ -305,7 +308,15 @@ func (r Result) format(w *strings.Builder) {
 		sl = append(sl, mustGetStringValue(r.Value))
 	case ResultType_Values:
 		for _, kv := range r.Values {
-			sl = append(sl, fmt.Sprintf(`%s:%s`, kv.Key, mustGetStringValue(kv.Value)))
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						fmt.Printf("XXX recovered panic at key %q (%q %x)\n", roachpb.Key(kv.Key), kv.Key, kv.Key)
+						panic(r)
+					}
+				}()
+				sl = append(sl, fmt.Sprintf(`%s:%s`, kv.Key, mustGetStringValue(kv.Value)))
+			}()
 		}
 	default:
 		panic("unhandled ResultType")

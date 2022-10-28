@@ -14,6 +14,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"math/rand"
 
 	"github.com/cockroachdb/cockroach/pkg/keys"
@@ -183,7 +184,7 @@ func newAllOperationsConfig() GeneratorConfig {
 		Scan:                      1,
 		ScanForUpdate:             1,
 		ReverseScan:               1,
-		ReverseScanForUpdate:      1,
+		ReverseScanForUpdate:      0,
 		DeleteMissing:             1,
 		DeleteExisting:            1,
 		DeleteRange:               1,
@@ -765,6 +766,9 @@ func randKeyBetween(rng *rand.Rand, k, ek string) string {
 	a, b := uint64FromKey(k), uint64FromKey(ek)
 	if b <= a {
 		b = a + 1 // we will return `k`
+	}
+	if b-a > math.MaxInt64 {
+		b = a + math.MaxInt64
 	}
 	defer func() {
 		if r := recover(); r != nil {

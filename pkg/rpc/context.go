@@ -1255,13 +1255,11 @@ func (rpcCtx *Context) grpcDialRaw(
 		redialChan: make(chan struct{}),
 	}
 	dialerFunc := dialer.dial
-	if rpcCtx.Knobs.ArtificialLatencyMap != nil {
-		latency := rpcCtx.Knobs.ArtificialLatencyMap[target]
-		log.VEventf(ctx, 1, "connecting with simulated latency %dms",
-			latency)
+	if latency := envutil.EnvOrDefaultDuration("COCKROACH_DIAL_LATENCY", 0); latency > 0 {
+		log.Infof(ctx, "connecting to %s with simulated latency %s", target, latency)
 		dialer := artificialLatencyDialer{
 			dialerFunc: dialerFunc,
-			latencyMS:  latency,
+			latencyMS:  int(latency.Milliseconds()),
 		}
 		dialerFunc = dialer.dial
 	}

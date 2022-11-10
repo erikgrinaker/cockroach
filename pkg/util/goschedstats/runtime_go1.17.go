@@ -12,8 +12,8 @@
 // and go1.18. Before allowing newer versions, please check that the structures
 // still match with those in go/src/runtime.
 
-//go:build gc && go1.17 && !go1.19
-// +build gc,go1.17,!go1.19
+//go:build gc && go1.17
+// +build gc,go1.17
 
 package goschedstats
 

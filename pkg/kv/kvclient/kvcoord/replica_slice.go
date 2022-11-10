@@ -214,8 +214,13 @@ func (rs ReplicaSlice) OptimizeReplicaOrder(
 		return
 	}
 
-	// Sort replicas by latency and then attribute affinity.
+	// Sort replicas by decreasing node ID.
 	sort.Slice(rs, func(i, j int) bool {
+		return rs[i].NodeID > rs[j].NodeID
+	})
+
+	// Sort replicas by latency and then attribute affinity.
+	/*sort.Slice(rs, func(i, j int) bool {
 		// Replicas on the same node have the same latency.
 		if rs[i].NodeID == rs[j].NodeID {
 			return false // i == j
@@ -240,7 +245,7 @@ func (rs ReplicaSlice) OptimizeReplicaOrder(
 		// Longer locality matches sort first (the assumption is that
 		// they'll have better latencies).
 		return attrMatchI > attrMatchJ
-	})
+	})*/
 }
 
 // Descriptors returns the ReplicaDescriptors inside the ReplicaSlice.

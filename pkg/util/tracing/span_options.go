@@ -67,14 +67,13 @@ type spanOptions struct {
 	// collection of each processor span recording independently, without relying
 	// on collecting the recording of the flow's span.
 	ParentDoesNotCollectRecording bool
-	RemoteParent                  SpanMeta               // see WithRemoteParentFromSpanMeta
-	RefType                       spanReferenceType      // see WithFollowsFrom
-	LogTags                       *logtags.Buffer        // see WithLogTags
-	Tags                          map[string]interface{} // see WithTags
-	ForceRealSpan                 bool                   // see WithForceRealSpan
-	SpanKind                      oteltrace.SpanKind     // see WithSpanKind
-	Sterile                       bool                   // see WithSterile
-	EventListeners                []EventListener        // see WithEventListeners
+	RemoteParent                  SpanMeta           // see WithRemoteParentFromSpanMeta
+	RefType                       spanReferenceType  // see WithFollowsFrom
+	LogTags                       *logtags.Buffer    // see WithLogTags
+	ForceRealSpan                 bool               // see WithForceRealSpan
+	SpanKind                      oteltrace.SpanKind // see WithSpanKind
+	Sterile                       bool               // see WithSterile
+	EventListeners                []EventListener    // see WithEventListeners
 
 	// recordingTypeExplicit is set if the WithRecording() option was used. In
 	// that case, spanOptions.recordingType() returns recordingTypeOpt below. If

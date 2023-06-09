@@ -183,7 +183,7 @@ type State interface {
 	LoadSplitterFor(StoreID) LoadSplitter
 	// RaftStatus returns the current raft status for the replica of the Range
 	// with ID RangeID, on the store with ID StoreID.
-	RaftStatus(RangeID, StoreID) *raft.Status
+	RaftStatus(RangeID, StoreID) raft.Status
 	// Report returns the span config conformance report for every range.
 	Report() roachpb.SpanConfigConformanceReport
 	// RegisterCapacityChangeListener registers a listener which will be

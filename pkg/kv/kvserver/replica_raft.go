@@ -2056,6 +2056,10 @@ func (s pendingCmdSlice) Less(i, j int) bool {
 // leader awoken). See handleRaftReady for an instance of where this value
 // varies.
 //
+// If mayCampaignOnWake is true, then a lazily initialized Raft group may
+// campaign when created, if appropriate. If the replica unquiesces then it will
+// always campaign if appropriate, regardless of this parameter.
+//
 // Requires that Replica.mu is held.
 //
 // If this Replica is in the process of being removed this method will return
@@ -2139,6 +2143,8 @@ func (r *Replica) withRaftGroup(
 	return r.withRaftGroupLocked(mayCampaignOnWake, f)
 }
 
+// shouldCampaignOnWake returns whether the replica should campaign when waking
+// up, either during Raft group initialization or unquiescence.
 func shouldCampaignOnWake(
 	leaseStatus kvserverpb.LeaseStatus,
 	storeID roachpb.StoreID,
@@ -2188,9 +2194,20 @@ func shouldCampaignOnWake(
 	return !livenessEntry.IsLive
 }
 
-// maybeCampaignOnWakeLocked is called when the range wakes from a
-// dormant state (either the initial "raftGroup == nil" state or after
-// being quiescent) and campaigns for raft leadership if appropriate.
+// maybeCampaignOnWakeLocked is called when the range wakes from a dormant state
+// (either the initial "raftGroup == nil" state or after being quiescent) and
+// campaigns for raft leadership if appropriate.
+//
+// If PreVote and CheckQuorum are enabled, prevotes will not be granted if a
+// follower has heard from a leader in the past election timeout interval. This
+// prevents spurious elections, and with partial/asymmetric network partition,
+// stealing leadership away to a node that the leaseholder may not be able to
+// reach, causing permanent unavailability. This may delay an election when
+// unquiescing, since Raft time does not pass when quiesced. However, only
+// followers enforce the recent leader condition, so if a quorum of followers
+// consider the leader dead and choose to campaign and become pre-candidates
+// then they can hold an election immediately. This may result in a tie if they
+// do so simultaneously.
 func (r *Replica) maybeCampaignOnWakeLocked(ctx context.Context) {
 	// Raft panics if a node that is not currently a member of the
 	// group tries to campaign. This method should never be called

@@ -665,11 +665,11 @@ func (r *Replica) stepRaftGroup(req *kvserverpb.RaftMessageRequest) error {
 		// Note that such partial partitions will typically result in persistent
 		// mass unquiescence due to the continuous prevotes.
 		if r.mu.quiescent {
+			var wakeLeader, mayCampaign bool
 			if !r.isRaftLeaderRLocked() && req.FromReplica.ReplicaID != r.mu.leaderID {
-				r.maybeUnquiesceAndWakeLeaderLocked()
-			} else {
-				r.maybeUnquiesceWithOptionsLocked(false /* campaignOnWake */)
+				wakeLeader, mayCampaign = true, true
 			}
+			r.maybeUnquiesceLocked(wakeLeader, mayCampaign)
 		}
 		r.mu.lastUpdateTimes.update(req.FromReplica.ReplicaID, timeutil.Now())
 		if req.Message.Type == raftpb.MsgSnap {
@@ -2105,7 +2105,7 @@ func (r *Replica) withRaftGroupLocked(
 		// stricter about validating incoming Quiesce requests) but it's good
 		// defense-in-depth.
 		//
-		// Note that maybeUnquiesceAndWakeLeaderLocked won't manage to wake up the
+		// Note that maybeUnquiesceWithOptionsLocked won't manage to wake up the
 		// leader since it's unknown to this replica, and at the time of writing the
 		// heuristics for campaigning are defensive (won't campaign if there is a
 		// live leaseholder). But if we are trying to unquiesce because this
@@ -2116,7 +2116,7 @@ func (r *Replica) withRaftGroupLocked(
 		unquiesce = true
 	}
 	if unquiesce {
-		r.maybeUnquiesceAndWakeLeaderLocked()
+		r.maybeUnquiesceLocked(true /* wakeLeader */, true /* mayCampaign */)
 	}
 	return err
 }

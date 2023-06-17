@@ -1178,9 +1178,15 @@ func (r *Replica) handleRaftReadyRaftMuLocked(
 			// old leader. We know the leader isn't around anymore anyway.
 			leaseStatus := r.leaseStatusAtRLocked(ctx, r.store.Clock().NowAsClockTimestamp())
 			raftStatus := raftGroup.BasicStatus()
-			if shouldCampaignAfterConfChange(ctx, r.store.ClusterSettings(), r.store.StoreID(),
-				r.descRLocked(), raftStatus, leaseStatus) {
+			shouldCampaign, shouldForget := shouldCampaignAfterConfChange(
+				ctx, r.store.ClusterSettings(), r.store.StoreID(), r.descRLocked(), raftStatus, leaseStatus)
+			if shouldCampaign {
 				r.forceCampaignLocked(ctx)
+			} else if shouldForget {
+				// For best-effort compatibility with 23.2, which uses PreVote here,
+				// forget the leader when removed in mixed 23.1/23.1 clusters to allow
+				// 23.2 to grant prevotes.
+				r.forgetLeaderLocked(ctx)
 			}
 		}
 
@@ -2717,39 +2723,46 @@ func shouldCampaignAfterConfChange(
 	desc *roachpb.RangeDescriptor,
 	raftStatus raft.BasicStatus,
 	leaseStatus kvserverpb.LeaseStatus,
-) bool {
+) (shouldCampaign bool, shouldForget bool) {
 	if raftStatus.Lead == 0 {
 		// Leader unknown. We can't know if it was removed by the conf change, and
 		// because we force an election without prevote we don't want to risk
 		// throwing spurious elections.
-		return false
+		return false, false
 	}
 	if raftStatus.RaftState == raft.StateLeader {
 		// We're already the leader, no point in campaigning.
-		return false
+		return false, false
 	}
 	if !desc.IsInitialized() {
 		// No descriptor, so we don't know if the leader has been removed. We
 		// don't expect to hit this, but let's be defensive.
-		return false
+		return false, false
 	}
 	if _, ok := desc.GetReplicaDescriptorByID(roachpb.ReplicaID(raftStatus.Lead)); ok {
 		// The leader is still in the descriptor.
-		return false
+		return false, false
 	}
-	// Prior to 23.2, the first voter in the descriptor campaigned, so we do
-	// the same in mixed-version clusters to avoid ties.
+	// Prior to 23.2, the first voter in the descriptor campaigned, so we do the
+	// same in mixed-version clusters to avoid ties. Since 23.1 also used PreVote,
+	// and 23.2 enabled the CheckQuorum recent leader condition, we instruct the
+	// caller to forget the leader if we're not the campaigner, which will allow
+	// us to grant prevotes even though we've heard from the removed leader
+	// recently, to avoid waiting for election timeouts.
+	//
+	// TODO(erikgrinaker): Remove this branch and the shouldForget return value
+	// when 23.1 is no longer supported.
 	if !st.Version.IsActive(ctx, clusterversion.V23_2) {
 		if storeID != desc.Replicas().VoterDescriptors()[0].StoreID {
 			// We're not the designated campaigner.
-			return false
+			return false, true
 		}
 	} else if !leaseStatus.OwnedBy(storeID) || !leaseStatus.IsValid() {
 		// We're not the leaseholder.
-		return false
+		return false, false
 	}
 	log.VEventf(ctx, 3, "leader got removed by conf change, campaigning")
-	return true
+	return true, false
 }
 
 // printRaftTail pretty-prints the tail of the log and returns it as a string,

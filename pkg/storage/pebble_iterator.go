@@ -12,13 +12,15 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"math"
 	"sync"
 
 	"github.com/cockroachdb/cockroach/pkg/keys"
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
 	"github.com/cockroachdb/cockroach/pkg/storage/pebbleiter"
-	"github.com/cockroachdb/cockroach/pkg/util"
+	"github.com/cockroachdb/cockroach/pkg/util/log"
+	"github.com/cockroachdb/cockroach/pkg/util/must"
 	"github.com/cockroachdb/cockroach/pkg/util/protoutil"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
 	"github.com/cockroachdb/errors"
@@ -123,7 +125,7 @@ func newPebbleIteratorByCloning(
 	})
 	if err != nil {
 		p.Close()
-		panic(err)
+		panic(err) // TODO(erikgrinaker): don't panic
 	}
 	return p
 }
@@ -203,7 +205,7 @@ func (p *pebbleIterator) initReuseOrCreate(
 		})
 		if err != nil {
 			p.Close()
-			panic(err)
+			panic(err) // TODO(erikgrinaker): don't panic
 		}
 	}
 }
@@ -211,15 +213,15 @@ func (p *pebbleIterator) initReuseOrCreate(
 // setOptions updates the options for a pebbleIterator. If p.iter is non-nil, it
 // updates the options on the existing iterator too.
 func (p *pebbleIterator) setOptions(opts IterOptions, durability DurabilityRequirement) {
-	if !opts.Prefix && len(opts.UpperBound) == 0 && len(opts.LowerBound) == 0 {
-		panic("iterator must set prefix or upper bound or lower bound")
-	}
-	if opts.MinTimestampHint.IsSet() && opts.MaxTimestampHint.IsEmpty() {
-		panic("min timestamp hint set without max timestamp hint")
-	}
-	if opts.Prefix && opts.RangeKeyMaskingBelow.IsSet() {
-		panic("can't use range key masking with prefix iterators") // very high overhead
-	}
+	ctx := context.TODO()
+	// TODO(erikgrinaker): don't panic.
+	must.PanicOn(must.True(ctx,
+		!opts.Prefix && len(opts.UpperBound) == 0 && len(opts.LowerBound) == 0,
+		"iterator must set prefix or upper bound or lower bound"))
+	must.PanicOn(must.True(ctx, opts.MinTimestampHint.IsSet() && opts.MaxTimestampHint.IsEmpty(),
+		"min timestamp hint set without max timestamp hint"))
+	must.PanicOn(must.True(ctx, opts.Prefix && opts.RangeKeyMaskingBelow.IsSet(),
+		"can't use range key masking with prefix iterators")) // very high overhead
 
 	// Generate new Pebble iterator options.
 	p.options = pebble.IterOptions{
@@ -308,9 +310,9 @@ func (p *pebbleIterator) setOptions(opts IterOptions, durability DurabilityRequi
 
 // Close implements the MVCCIterator interface.
 func (p *pebbleIterator) Close() {
-	if !p.inuse {
-		panic("closing idle iterator")
-	}
+	ctx := context.TODO()
+	must.PanicOn(must.True(ctx, p.inuse, "closing idle iterator")) // TODO(erikgrinaker): don't panic
+
 	p.inuse = false
 
 	// Report the iterator's stats so they can be accumulated and exposed
@@ -366,10 +368,11 @@ func (p *pebbleIterator) SeekEngineKeyGE(key EngineKey) (valid bool, err error) 
 func (p *pebbleIterator) SeekEngineKeyGEWithLimit(
 	key EngineKey, limit roachpb.Key,
 ) (state pebble.IterValidityState, err error) {
+	ctx := context.TODO()
 	p.keyBuf = key.EncodeToBuf(p.keyBuf[:0])
 	if limit != nil {
-		if p.prefix {
-			panic("prefix iteration does not permit a limit")
+		if err := must.False(ctx, p.prefix, "can't use limit with prefix iter"); err != nil {
+			return state, err
 		}
 		// Append the sentinel byte to make an EngineKey that has an empty
 		// version.
@@ -419,10 +422,8 @@ func (p *pebbleIterator) Valid() (bool, error) {
 		return false, nil
 	}
 
-	if util.RaceEnabled {
-		if err := p.assertMVCCInvariants(); err != nil {
-			return false, err
-		}
+	if err := must.Expensive(p.assertMVCCInvariants); err != nil {
+		return false, err
 	}
 	return true, nil
 }
@@ -528,9 +529,9 @@ func (p *pebbleIterator) UnsafeValue() ([]byte, error) {
 
 // UnsafeLazyValue implements the MVCCIterator interface.
 func (p *pebbleIterator) UnsafeLazyValue() pebble.LazyValue {
-	if ok := p.iter.Valid(); !ok {
-		panic(errors.AssertionFailedf("UnsafeLazyValue called on !Valid iterator"))
-	}
+	ctx := context.TODO()
+	// TODO(erikgrinaker): don't panic.
+	must.PanicOn(must.True(ctx, p.iter.Valid(), "UnsafeLazyValue with !Valid iterator"))
 	return p.iter.LazyValue()
 }
 
@@ -930,9 +931,8 @@ func (p *pebbleIterator) getBlockPropertyFilterMask() pebble.BlockPropertyFilter
 }
 
 func (p *pebbleIterator) destroy() {
-	if p.inuse {
-		panic("iterator still in use")
-	}
+	ctx := context.TODO()
+	must.PanicOn(must.False(ctx, p.inuse, "iterator still in use")) // TODO(erikgrinaker): don't panic
 	if p.iter != nil {
 		// If an error is encountered during iteration, it'll already have been
 		// surfaced by p.iter.Error() through Valid()'s error return value.
@@ -947,16 +947,16 @@ func (p *pebbleIterator) destroy() {
 		// Currently, most of these errors are swallowed. The error returned by
 		// iter.Close() may be an ephemeral error, or it may a misuse of the
 		// Iterator or corruption. Only swallow ephemeral errors (eg,
-		// DeadlineExceeded, etc), panic-ing on Close errors that are not known to
+		// DeadlineExceeded, etc), fatal-ing on Close errors that are not known to
 		// be ephemeral/retriable. While these ephemeral error types are enumerated,
-		// we panic on the error types we know to be NOT ephemeral.
+		// we fatal on the error types we know to be NOT ephemeral.
 		//
 		// See cockroachdb/pebble#1811.
 		//
-		// NB: The panic is omitted if the error is encountered on an external
+		// NB: The fatal is omitted if the error is encountered on an external
 		// iterator which is iterating over uncommitted sstables.
 		if err := p.iter.Close(); !p.external && errors.Is(err, pebble.ErrCorruption) {
-			panic(err)
+			log.Fatalf(ctx, "%+v", err)
 		}
 		p.iter = nil
 	}
@@ -972,37 +972,38 @@ func (p *pebbleIterator) destroy() {
 	}
 }
 
-// assertMVCCInvariants asserts internal MVCC iterator invariants, returning an
-// AssertionFailedf on any failures. It must be called on a valid iterator after
-// a complete state transition.
+// assertMVCCInvariants asserts internal MVCC iterator invariants. It must be
+// called on a valid iterator after a complete state transition.
 func (p *pebbleIterator) assertMVCCInvariants() error {
+	ctx := context.TODO()
+
 	// Assert general MVCCIterator API invariants.
 	if err := assertMVCCIteratorInvariants(p); err != nil {
 		return err
 	}
 
 	// The underlying iterator must be valid, with !mvccDone.
-	if !p.iter.Valid() {
-		errMsg := p.iter.Error().Error()
-		return errors.AssertionFailedf("underlying iter is invalid, with err=%s", errMsg)
+	if err := must.True(ctx, p.iter.Valid(), "invalid iter, err=%s", p.iter.Error()); err != nil {
+		return err
 	}
-	if p.mvccDone {
-		return errors.AssertionFailedf("valid iter with mvccDone set")
+	if err := must.False(ctx, p.mvccDone, "valid iter with mvccDone"); err != nil {
+		return err
 	}
 
 	// The position must match the underlying iter.
-	if key, iterKey := p.UnsafeKey(), p.iter.Key(); !bytes.Equal(EncodeMVCCKey(key), iterKey) {
-		return errors.AssertionFailedf("UnsafeKey %s does not match iterator key %x", key, iterKey)
+	if err := must.EqualBytes(ctx, EncodeMVCCKey(p.UnsafeKey()), p.iter.Key(),
+		"UnsafeKey != iter.Key"); err != nil {
+		return err
 	}
 
 	// The iterator must be marked as in use.
-	if !p.inuse {
-		return errors.AssertionFailedf("valid iter with inuse=false")
+	if err := must.True(ctx, p.inuse, "valid iter with !inuse"); err != nil {
+		return err
 	}
 
 	// Prefix must be exposed.
-	if p.prefix != p.IsPrefix() {
-		return errors.AssertionFailedf("IsPrefix() does not match prefix=%v", p.prefix)
+	if err := must.Equal(ctx, p.prefix, p.IsPrefix(), "prefix != IsPrefix"); err != nil {
+		return err
 	}
 
 	return nil

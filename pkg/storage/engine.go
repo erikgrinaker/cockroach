@@ -26,6 +26,7 @@ import (
 	"github.com/cockroachdb/cockroach/pkg/util/iterutil"
 	"github.com/cockroachdb/cockroach/pkg/util/log"
 	"github.com/cockroachdb/cockroach/pkg/util/log/eventpb"
+	"github.com/cockroachdb/cockroach/pkg/util/must"
 	"github.com/cockroachdb/cockroach/pkg/util/protoutil"
 	"github.com/cockroachdb/cockroach/pkg/util/uuid"
 	"github.com/cockroachdb/errors"
@@ -1318,6 +1319,7 @@ type EncryptionRegistries struct {
 // at the storage layer, problem decoding the key, problem unmarshalling the
 // intent, missing transaction on the intent or multiple intents for this key.
 func GetIntent(reader Reader, key roachpb.Key) (*roachpb.Intent, error) {
+	ctx := context.TODO()
 	// Translate this key from a regular key to one in the lock space so it can be
 	// used for queries.
 	lbKey, _ := keys.LockTableSingleKey(key, nil)
@@ -1341,10 +1343,8 @@ func GetIntent(reader Reader, key roachpb.Key) (*roachpb.Intent, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !checkKey.Equal(key) {
-		// This should not be possible, a key and using prefix match means that it
-		// must match.
-		return nil, errors.AssertionFailedf("key does not match expected %v != %v", checkKey, key)
+	if err := must.EqualBytes(ctx, checkKey, key, "unexpected intent key"); err != nil {
+		return nil, err
 	}
 	var meta enginepb.MVCCMetadata
 	v, err := iter.UnsafeValue()
@@ -1354,8 +1354,8 @@ func GetIntent(reader Reader, key roachpb.Key) (*roachpb.Intent, error) {
 	if err = protoutil.Unmarshal(v, &meta); err != nil {
 		return nil, err
 	}
-	if meta.Txn == nil {
-		return nil, errors.AssertionFailedf("txn is null for key %v, intent %v", key, meta)
+	if err := must.NotNil(ctx, meta.Txn, "nil txn for key %v intent %v", key, meta); err != nil {
+		return nil, err
 	}
 	intent := roachpb.MakeIntent(meta.Txn, key)
 
@@ -1371,7 +1371,8 @@ func GetIntent(reader Reader, key roachpb.Key) (*roachpb.Intent, error) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, errors.AssertionFailedf("unexpected additional key found %v while looking for %v", engineKey, key)
+		err = must.Fail(ctx, "unexpected additional key found %v while looking for %v", engineKey, key)
+		return nil, err
 	}
 	return &intent, nil
 }
@@ -1713,20 +1714,21 @@ func iterateOnReader(
 }
 
 // assertSimpleMVCCIteratorInvariants asserts invariants in the
-// SimpleMVCCIterator interface that should hold for all implementations,
-// returning errors.AssertionFailedf for any violations. The iterator
-// must be valid.
+// SimpleMVCCIterator interface that should hold for all implementations. The
+// iterator must be valid.
 func assertSimpleMVCCIteratorInvariants(iter SimpleMVCCIterator) error {
+	ctx := context.TODO()
 	key := iter.UnsafeKey()
 
 	// Keys can't be empty.
-	if len(key.Key) == 0 {
-		return errors.AssertionFailedf("valid iterator returned empty key")
+	if err := must.NotEmpty(ctx, key.Key, "iterator returned empty key"); err != nil {
+		return err
 	}
 
 	// Can't be positioned in the lock table.
-	if bytes.HasPrefix(key.Key, keys.LocalRangeLockTablePrefix) {
-		return errors.AssertionFailedf("MVCC iterator positioned in lock table at %s", key)
+	if err := must.NotPrefixBytes(ctx, key.Key, keys.LocalRangeLockTablePrefix,
+		"MVCC iterator in lock table"); err != nil {
+		return err
 	}
 
 	// Any valid position must have either a point and/or range key.
@@ -1735,7 +1737,7 @@ func assertSimpleMVCCIteratorInvariants(iter SimpleMVCCIterator) error {
 		// NB: MVCCIncrementalIterator can return hasPoint=false,hasRange=false
 		// following a NextIgnoringTime() call. We explicitly allow this here.
 		if incrIter, ok := iter.(*MVCCIncrementalIterator); !ok || !incrIter.ignoringTime {
-			return errors.AssertionFailedf("valid iterator without point/range keys at %s", key)
+			return must.Fail(ctx, "valid iterator without point/range keys at %s", key)
 		}
 	}
 
@@ -1745,70 +1747,68 @@ func assertSimpleMVCCIteratorInvariants(iter SimpleMVCCIterator) error {
 		// further bounds assertions.
 		bounds := iter.RangeBounds()
 		if len(bounds.Key) == 0 && len(bounds.EndKey) == 0 {
-			return errors.AssertionFailedf("hasRange=true but empty range bounds at %s", key)
+			return must.Fail(ctx, "hasRange=true but empty range bounds at %s", key)
 		}
 
 		// Iterator position must be within range key bounds.
 		if !bounds.ContainsKey(key.Key) {
-			return errors.AssertionFailedf("iterator position %s outside range bounds %s", key, bounds)
+			return must.Fail(ctx, "iterator position %s outside range bounds %s", key, bounds)
 		}
 
 		// Bounds must match range key stack.
 		rangeKeys := iter.RangeKeys()
 		if !rangeKeys.Bounds.Equal(bounds) {
-			return errors.AssertionFailedf("range bounds %s does not match range key %s",
-				bounds, rangeKeys.Bounds)
+			return must.Fail(ctx, "range bounds %s does not match range key %s", bounds, rangeKeys.Bounds)
 		}
 
 		// Must have range keys.
-		if rangeKeys.IsEmpty() {
-			return errors.AssertionFailedf("hasRange=true but no range key versions at %s", key)
+		if err := must.NotEmpty(ctx, rangeKeys.Versions,
+			"hasRange but no range key versions at %s", key); err != nil {
+			return err
 		}
 
 		for i, v := range rangeKeys.Versions {
 			// Range key must be valid.
 			rangeKey := rangeKeys.AsRangeKey(v)
-			if err := rangeKey.Validate(); err != nil {
-				return errors.NewAssertionErrorWithWrappedErrf(err, "invalid range key at %s", key)
+			if err := must.NoError(ctx, rangeKey.Validate(), "invalid range key at %s", key); err != nil {
+				return err
 			}
 			// Range keys must be in descending timestamp order.
 			if i > 0 && !v.Timestamp.Less(rangeKeys.Versions[i-1].Timestamp) {
-				return errors.AssertionFailedf("range key %s not below version %s",
-					rangeKey, rangeKeys.Versions[i-1].Timestamp)
+				return must.Fail(ctx,
+					"range key %s not below version %s", rangeKey, rangeKeys.Versions[i-1].Timestamp)
 			}
 			// Range keys must currently be tombstones.
-			if value, err := DecodeMVCCValue(v.Value); err != nil {
-				return errors.NewAssertionErrorWithWrappedErrf(err, "invalid range key value at %s",
-					rangeKey)
-			} else if !value.IsTombstone() {
-				return errors.AssertionFailedf("non-tombstone range key %s with value %x",
-					rangeKey, value.Value.RawBytes)
+			value, err := DecodeMVCCValue(v.Value)
+			if err := must.NoError(ctx, err, "invalid range key value at %s", rangeKey); err != nil {
+				return err
+			}
+			if err := must.True(ctx, value.IsTombstone(),
+				"non-tombstone range key %s with value %x", rangeKey, value.Value.RawBytes); err != nil {
+				return err
 			}
 		}
 
 	}
 	if hasPoint {
 		value, err := iter.UnsafeValue()
-		if err != nil {
+		if err := must.NoError(ctx, err, "failed to fetch unsafe value"); err != nil {
 			return err
 		}
-		valueLen := iter.ValueLen()
-		if len(value) != valueLen {
-			return errors.AssertionFailedf("length of UnsafeValue %d != ValueLen %d", len(value), valueLen)
+		if err := must.Len(ctx, value, iter.ValueLen(), "wrong ValueLen"); err != nil {
+			return err
 		}
 		if key.IsValue() {
-			valueLen2, isTombstone, err := iter.MVCCValueLenAndIsTombstone()
-			if err == nil {
-				if len(value) != valueLen2 {
-					return errors.AssertionFailedf("length of UnsafeValue %d != MVCCValueLenAndIsTombstone %d",
-						len(value), valueLen2)
+			if valueLen, isTombstone, err := iter.MVCCValueLenAndIsTombstone(); err == nil {
+				if err := must.Len(ctx, value, valueLen, "wrong MVCCValueLenAndIsTombstone"); err != nil {
+					return err
 				}
 				if v, err := DecodeMVCCValue(value); err == nil {
-					if isTombstone != v.IsTombstone() {
-						return errors.AssertionFailedf("isTombstone from MVCCValueLenAndIsTombstone %t != MVCCValue.IsTombstone %t",
-							isTombstone, v.IsTombstone())
+					if err := must.Equal(ctx, isTombstone, v.IsTombstone(),
+						"wrong MVCCValueLenAndIsTombstone()"); err != nil {
+						return err
 					}
-					// Else err != nil. SimpleMVCCIterator is not responsile for data
+					// Else err != nil. SimpleMVCCIterator is not responsible for data
 					// corruption since it is possible that the implementation of
 					// MVCCValueLenAndIsTombstone is fetching information from a
 					// different part of the store than where the value is stored.
@@ -1823,70 +1823,78 @@ func assertSimpleMVCCIteratorInvariants(iter SimpleMVCCIterator) error {
 }
 
 // assertMVCCIteratorInvariants asserts invariants in the MVCCIterator interface
-// that should hold for all implementations, returning errors.AssertionFailedf
-// for any violations. It calls through to assertSimpleMVCCIteratorInvariants().
-// The iterator must be valid.
+// that should hold for all implementations. It calls through to
+// assertSimpleMVCCIteratorInvariants(). The iterator must be valid.
 func assertMVCCIteratorInvariants(iter MVCCIterator) error {
 	// Assert SimpleMVCCIterator invariants.
 	if err := assertSimpleMVCCIteratorInvariants(iter); err != nil {
 		return err
 	}
 
+	ctx := context.TODO()
 	key := iter.UnsafeKey().Clone()
 
 	// UnsafeRawMVCCKey must match Key.
-	if r, err := DecodeMVCCKey(iter.UnsafeRawMVCCKey()); err != nil {
-		return errors.NewAssertionErrorWithWrappedErrf(
-			err, "failed to decode UnsafeRawMVCCKey at %s",
-			key,
-		)
-	} else if !r.Equal(key) {
-		return errors.AssertionFailedf("UnsafeRawMVCCKey %s does not match Key %s", r, key)
+	r, err := DecodeMVCCKey(iter.UnsafeRawMVCCKey())
+	if err := must.NoError(ctx, err, "failed to decode UnsafeRawMVCCKey at %s", key); err != nil {
+		return err
+	}
+	if err := must.True(ctx, r.Equal(key), "UnsafeRawMVCCKey %s != Key %s", r, key); err != nil {
+		return err
 	}
 
 	// UnsafeRawKey must either be an MVCC key matching Key, or a lock table key
 	// that refers to it.
-	if engineKey, ok := DecodeEngineKey(iter.UnsafeRawKey()); !ok {
-		return errors.AssertionFailedf("failed to decode UnsafeRawKey as engine key at %s", key)
-	} else if engineKey.IsMVCCKey() {
-		if k, err := engineKey.ToMVCCKey(); err != nil {
-			return errors.NewAssertionErrorWithWrappedErrf(err, "invalid UnsafeRawKey at %s", key)
-		} else if !k.Equal(key) {
-			return errors.AssertionFailedf("UnsafeRawKey %s does not match Key %s", k, key)
+	engineKey, ok := DecodeEngineKey(iter.UnsafeRawKey())
+	if err := must.True(ctx, ok, "failed to decode UnsafeRawKey at %s", key); err != nil {
+		return err
+	}
+	if engineKey.IsMVCCKey() {
+		k, err := engineKey.ToMVCCKey()
+		if err := must.NoError(ctx, err, "invalid UnsafeRawKey at %s", key); err != nil {
+			return err
+		}
+		if err := must.True(ctx, k.Equal(key), "UnsafeRawKey %s != Key %s", k, key); err != nil {
+			return err
 		}
 	} else if engineKey.IsLockTableKey() {
-		if k, err := engineKey.ToLockTableKey(); err != nil {
-			return errors.NewAssertionErrorWithWrappedErrf(err, "invalid UnsafeRawKey at %s", key)
-		} else if !k.Key.Equal(key.Key) {
-			return errors.AssertionFailedf("UnsafeRawKey lock table key %s does not match Key %s", k, key)
-		} else if !key.Timestamp.IsEmpty() {
-			return errors.AssertionFailedf(
-				"UnsafeRawKey lock table key %s for Key %s with non-zero timestamp", k, key,
-			)
+		k, err := engineKey.ToLockTableKey()
+		if err := must.NoError(ctx, err, "invalid UnsafeRawKey at %s", key); err != nil {
+			return err
+		}
+		if err := must.True(ctx, k.Key.Equal(key.Key),
+			"UnsafeRawKey lock table key %s does not match Key %s", k, key); err != nil {
+			return err
+		}
+		if err := must.Zero(ctx, key.Timestamp,
+			"UnsafeRawKey lock table key %s for Key %s with non-zero timestamp", k, key); err != nil {
+			return err
 		}
 	} else {
-		return errors.AssertionFailedf("unknown type for engine key %s", engineKey)
+		return must.Fail(ctx, "unknown type for engine key %s", engineKey)
 	}
 
 	// Value must equal UnsafeValue.
 	u, err := iter.UnsafeValue()
-	if err != nil {
+	if err := must.NoError(ctx, err, "UnsafeValue failed"); err != nil {
 		return err
 	}
 	v, err := iter.Value()
-	if err != nil {
+	if err := must.NoError(ctx, err, "Value failed"); err != nil {
 		return err
 	}
-	if !bytes.Equal(v, u) {
-		return errors.AssertionFailedf("Value %x does not match UnsafeValue %x at %s", v, u, key)
+	if err := must.EqualBytes(ctx, v, u, "Value != UnsafeValue at %s", key); err != nil {
+		return err
 	}
 
 	// For prefix iterators, any range keys must be point-sized. We've already
 	// asserted that the range key covers the iterator position.
 	if iter.IsPrefix() {
 		if _, hasRange := iter.HasPointAndRange(); hasRange {
-			if bounds := iter.RangeBounds(); !bounds.EndKey.Equal(bounds.Key.Next()) {
-				return errors.AssertionFailedf("prefix iterator with wide range key %s", bounds)
+			bounds := iter.RangeBounds()
+			if err := must.EqualBytes(ctx, bounds.Key.Next(), bounds.EndKey,
+				"prefix iterator with wide range key %s", bounds); err != nil {
+				return err
 			}
 		}
 	}
@@ -1922,14 +1930,14 @@ func ScanConflictingIntentsForDroppingLatchesEarly(
 	}
 
 	upperBoundUnset := len(end) == 0 // NB: Get requests do not set the end key.
-	if !upperBoundUnset && bytes.Compare(start, end) >= 0 {
-		return true, errors.AssertionFailedf("start key must be less than end key")
-	}
 	ltStart, _ := keys.LockTableSingleKey(start, nil)
 	opts := IterOptions{LowerBound: ltStart}
 	if upperBoundUnset {
 		opts.Prefix = true
 	} else {
+		if err := must.Less(ctx, string(start), string(end), "start after end"); err != nil {
+			return true, err
+		}
 		ltEnd, _ := keys.LockTableSingleKey(end, nil)
 		opts.UpperBound = ltEnd
 	}

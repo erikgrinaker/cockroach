@@ -2465,7 +2465,7 @@ var _ sort.Interface = SequencedWriteBySeq{}
 // sequence number. Returns -1 if no corresponding write is found.
 func (s SequencedWriteBySeq) Find(seq enginepb.TxnSeq) int {
 	_ = must.Expensive(func() error {
-		return must.True(context.TODO(), sort.IsSorted(s), "SequencedWriteBySeq not sorted")
+		return must.True(must.Ctx, sort.IsSorted(s), "SequencedWriteBySeq not sorted")
 	})
 	if i := sort.Search(len(s), func(i int) bool {
 		return s[i].Sequence >= seq

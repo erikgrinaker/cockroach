@@ -174,6 +174,11 @@ var (
 
 	// OnFail can be injected in tests.
 	OnFail func(ctx context.Context, err error)
+
+	// Ctx is a convenient context that can be used by assertions that don't have
+	// access to their own context. It's equivalent to a background context, but
+	// shorter to write.
+	Ctx = context.Background()
 )
 
 // Fail triggers an assertion failure. In non-release builds, it fatals with a

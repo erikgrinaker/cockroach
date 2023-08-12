@@ -162,7 +162,9 @@ func (p *ScheduledProcessor) pusher() TxnPusher {
 func (p *ScheduledProcessor) process(ctx context.Context, e int) int {
 	se := schedulerEvent(e)
 	var nextEvent int
-	log.VEventf(ctx, 3, "rangefeed r%d processing event %s", p.RangeID, se)
+	if log.V(3) {
+		log.VEventf(ctx, 3, "rangefeed r%d processing event %s", p.RangeID, se)
+	}
 	if se&reqEvent != 0 {
 		func() {
 			for {
@@ -803,6 +805,8 @@ func (p *ScheduledProcessor) newCheckpointEvent() *kvpb.RangeFeedEvent {
 }
 
 func (p *ScheduledProcessor) scheduleEvent(e schedulerEvent) error {
-	log.VEventf(context.Background(), 3, "scheduling event %s", e)
+	if log.V(3) {
+		log.VEventf(context.Background(), 3, "scheduling event %s", e)
+	}
 	return p.Scheduler.Schedule(int(e))
 }

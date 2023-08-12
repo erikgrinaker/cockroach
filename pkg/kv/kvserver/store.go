@@ -2285,7 +2285,7 @@ func (s *Store) startRangefeedUpdater(ctx context.Context) {
 			// closed timestamp lag for each range. The closedts-rangefeed-updater
 			// refresh loop operates independently of incoming closed timestamp
 			// updates, so this does not favor some replicas over others.
-			sort.Sort(&rangeIDs)
+			//sort.Sort(&rangeIDs)
 			return rangeIDs
 		}
 
@@ -2332,6 +2332,7 @@ func (s *Store) startRangefeedUpdater(ctx context.Context) {
 		//   the rate of processing in accordance with the time remaining until the
 		//   refresh interval ends.
 		conf := newRangeFeedUpdaterConf(s.cfg.Settings)
+		var closedTimestamps map[roachpb.RangeID]hlc.Timestamp
 		for {
 			// Configuration may have changed between runs, load it unconditionally.
 			// This will block until an "active" configuration exists, i.e. a one with

@@ -117,7 +117,8 @@ func (p *ScheduledProcessor) Start(
 	stopper *stop.Stopper, rtsIterFunc IntentScannerConstructor,
 ) error {
 	ctx := p.Config.AmbientContext.AnnotateCtx(context.Background())
-	ctx, p.startupCancel = context.WithCancel(ctx)
+	var startupCtx context.Context
+	startupCtx, p.startupCancel = context.WithCancel(ctx)
 	p.stopper = stopper
 
 	// Launch an async task to scan over the resolved timestamp iterator and
@@ -125,22 +126,24 @@ func (p *ScheduledProcessor) Start(
 	if rtsIterFunc != nil {
 		rtsIter := rtsIterFunc()
 		initScan := newInitResolvedTSScan(p, rtsIter)
-		if err := stopper.RunAsyncTask(ctx, "rangefeed: init resolved ts", initScan.Run); err != nil {
+		if err := stopper.RunAsyncTask(startupCtx, "rangefeed: init resolved ts", initScan.Run); err != nil {
 			initScan.Cancel()
 			// We don't need to perform disconnect yet as we don't add registrations
 			// prior to starting processor.
 			close(p.stoppedC)
-			p.MemBudget.Close(context.Background())
+			p.MemBudget.Close(ctx)
 			return err
 		}
 	} else {
 		p.initResolvedTS(ctx)
 	}
-	if err := p.Scheduler.Register(p.process); err != nil {
+	if err := p.Scheduler.Register(func(e int) int {
+		return p.process(ctx, e)
+	}); err != nil {
 		// If registering fails we are stopping so do minimal cleanup.
 		p.startupCancel()
 		close(p.stoppedC)
-		p.MemBudget.Close(context.Background())
+		p.MemBudget.Close(ctx)
 		return err
 	}
 	return nil
@@ -156,8 +159,7 @@ func (p *ScheduledProcessor) pusher() TxnPusher {
 
 // process is a scheduler callback that is processing scheduled events and
 // requests.
-func (p *ScheduledProcessor) process(e int) int {
-	ctx := p.Config.AmbientContext.AnnotateCtx(context.Background())
+func (p *ScheduledProcessor) process(ctx context.Context, e int) int {
 	se := schedulerEvent(e)
 	var nextEvent int
 	log.VEventf(ctx, 3, "rangefeed r%d processing event %s", p.RangeID, se)

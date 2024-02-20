@@ -13,12 +13,10 @@ package kvcoord
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/cockroach/pkg/kv/kvpb"
 	"github.com/cockroachdb/cockroach/pkg/roachpb"
-	"github.com/cockroachdb/cockroach/pkg/rpc"
 	"github.com/cockroachdb/cockroach/pkg/settings"
 	"github.com/cockroachdb/cockroach/pkg/settings/cluster"
 	"github.com/cockroachdb/cockroach/pkg/util/circuit"
@@ -56,13 +54,6 @@ var (
 		"kv.dist_sender.circuit_breaker.probe.timeout",
 		"timeout for replica probes",
 		3*time.Second,
-	)
-
-	CircuitBreakerCancelInflight = settings.RegisterBoolSetting(
-		settings.ApplicationLevel,
-		"kv.dist_sender.circuit_breaker.cancel.enabled",
-		"when enabled, in-flight requests will be cancelled when the circuit breaker trips",
-		false, // TODO(erikgrinaker): enable by default?
 	)
 )
 
@@ -194,60 +185,6 @@ func (d *DistSenderCircuitBreakers) Start() error {
 				cbs = append(cbs, cb) // nolint:deferunlockcheck
 			}
 			d.mu.RUnlock()
-
-			nowNanos := timeutil.Now().UnixNano()
-			probeThreshold := CircuitBreakerProbeThreshold.Get(&d.settings.SV).Nanoseconds()
-			gcBelow := nowNanos - cbGCThreshold.Nanoseconds()
-
-			// Probe the replica for a stall if we haven't seen a response from it in
-			// the past probe threshold.
-			for _, cb := range cbs {
-				if s := cb.stallSince.Load(); s > 0 && nowNanos-s >= probeThreshold {
-					cb.breaker.Probe()
-				}
-			}
-
-			// Garbage collect stale replicas that haven't seen traffic for some time.
-			//
-			// We use this simple scheme both to avoid tracking replicas that aren't
-			// being used, and also to clean up after replicas that no longer exist.
-			// This is much simpler and less error-prone than eagerly removing them in
-			// response to errors and synchronizing with range descriptor updates,
-			// which would also risk significant churn to create and destroy circuit
-			// breakers if the DistSender keeps sending requests to them for some
-			// reason.
-			var gced int
-			for _, cb := range cbs {
-				if lastRequest := cb.lastRequest.Load(); lastRequest > 0 && lastRequest < gcBelow {
-					// NB: we don't want to remove a tripped circuit breaker. But this
-					// also implicitly relies on the probe shutting down and untripping
-					// the breaker if the replica no longer exists. There is a risk that
-					// we'll "leak" probes if we don't properly detect this.
-					if cb.inflightReqs.Load() == 0 && cb.Err() == nil {
-						key := cbKey{rangeID: cb.rangeID, replicaID: cb.desc.ReplicaID}
-						// Check under lock that the replica still exists in the map. They
-						// should only be removed by this loop, but better safe than sorry.
-						d.mu.Lock()
-						_, ok := d.mu.replicas[key]
-						delete(d.mu.replicas, key) // nolint:deferunlockcheck
-						d.mu.Unlock()
-						// Close the circuit breaker's closedC channel to abort any probes.
-						// We use the map as a synchronization point above, so we know this
-						// will only be closed once.
-						if ok {
-							close(cb.closedC)
-						}
-						// Avoid delaying the probe loop for too long, so yield after 100
-						// replicas. We could also try to batch removals under lock, but
-						// that could hold the lock for too long, or we could split this out
-						// to a separate loop. For now, we do the simple thing.
-						gced++
-						if gced >= 100 {
-							break
-						}
-					}
-				}
-			}
 		}
 	})
 }
@@ -297,23 +234,20 @@ type ReplicaCircuitBreaker struct {
 	desc     roachpb.ReplicaDescriptor
 	breaker  *circuit.Breaker
 
-	// inflightReqs tracks the number of in-flight requests.
-	inflightReqs atomic.Int32
-
-	// errorSince is the timestamp when the current streak of errors began. Set on
-	// an initial error, and cleared on successful responses.
-	errorSince atomic.Int64
-
-	// stallSince is the timestamp when the current potential stall began. Set on
-	// the first in-flight request, moved forward on each response from the
-	// replica (even errors), and cleared when there are no in-flight requests.
-	stallSince atomic.Int64
-
-	// lastRequest contains the last request timestamp, for garbage collection.
-	lastRequest atomic.Int64
-
 	mu struct {
 		syncutil.Mutex
+
+		// lastRequest contains the last request timestamp, for garbage collection.
+		lastRequest int64
+
+		// errorSince is the timestamp when the current streak of errors began. Set on
+		// an initial error, and cleared on successful responses.
+		errorSince int64
+
+		// stallSince is the timestamp when the current potential stall began. Set on
+		// the first in-flight request, moved forward on each response from the
+		// replica (even errors), and cleared when there are no in-flight requests.
+		stallSince int64
 
 		// cancelFns contains context cancellation functions for all in-flight
 		// requests. Only tracked if cancellation is enabled.
@@ -355,15 +289,14 @@ func newReplicaCircuitBreaker(
 // replicaCircuitBreakerToken carries request-scoped state between Track() and
 // done().
 type replicaCircuitBreakerToken struct {
-	r      *ReplicaCircuitBreaker // nil if circuit breakers were disabled
-	ctx    context.Context
-	ba     *kvpb.BatchRequest
-	cancel func()
+	r   *ReplicaCircuitBreaker // nil if circuit breakers were disabled
+	ctx context.Context
+	ba  *kvpb.BatchRequest
 }
 
 // Done records the result of the request and untracks it.
 func (t replicaCircuitBreakerToken) Done(br *kvpb.BatchResponse, err error, nowNanos int64) {
-	t.r.done(t.ctx, t.ba, br, err, nowNanos, t.cancel)
+	t.r.done(t.ctx, t.ba, br, err, nowNanos)
 }
 
 // id returns a string identifier for the replica.
@@ -392,47 +325,40 @@ func (r *ReplicaCircuitBreaker) Track(
 		return ctx, replicaCircuitBreakerToken{}, nil // circuit breakers disabled
 	}
 
-	// Record the request timestamp.
-	r.lastRequest.Store(nowNanos)
-
-	// Check if the breaker is tripped.
+	// Check if the breaker is tripped. We record the last request
+	// timestamp regardless.
 	if err := r.Err(); err != nil {
+		r.mu.Lock()
+		r.mu.lastRequest = max(nowNanos, r.mu.lastRequest)
+		r.mu.Unlock()
 		return nil, replicaCircuitBreakerToken{}, err
 	}
 
 	// Set up the request token.
 	token := replicaCircuitBreakerToken{
 		r:   r,
-		ctx: ctx,
+		ctx: ctx, // NB: original client context
 		ba:  ba,
 	}
 
-	// Record in-flight requests. If this is the only request, tentatively start
-	// tracking a stall.
-	if inflightReqs := r.inflightReqs.Add(1); inflightReqs == 1 {
-		r.stallSince.Store(nowNanos)
-	} else if inflightReqs < 0 {
-		log.Fatalf(ctx, "inflightReqs %d < 0", inflightReqs) // overflow
+	// Create a send context that can be used to cancel in-flight requests.
+	ctx, cancel := context.WithCancel(ctx)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Record the request timestamp.
+	r.mu.lastRequest = max(nowNanos, r.mu.lastRequest)
+
+	// Record the cancel function. If this is the only request, tentatively
+	// start tracking a stall.
+	r.mu.cancelFns[ba] = cancel
+
+	if len(r.mu.cancelFns) == 1 {
+		r.mu.stallSince = max(nowNanos, r.mu.stallSince)
 	}
 
-	// If enabled, create a send context that can be used to cancel in-flight
-	// requests if the breaker trips.
-	//
-	// TODO(erikgrinaker): this needs optimization. We should try to make the map
-	// lock-free. Alternatively, if we have to use a mutex, we can drop the
-	// atomics and update everything under lock. WithCancel() also allocates.
-	// Ideally, it should be possible to propagate cancellation of a single
-	// replica-scoped context onto all request contexts, but this requires messing
-	// with Go internals.
-	sendCtx := ctx
-	if CircuitBreakerCancelInflight.Get(&r.d.settings.SV) {
-		sendCtx, token.cancel = context.WithCancel(ctx)
-		r.mu.Lock()
-		r.mu.cancelFns[ba] = token.cancel
-		r.mu.Unlock()
-	}
-
-	return sendCtx, token, nil
+	return ctx, token, nil
 }
 
 // done records the result of a tracked request and untracks it. It is called
@@ -443,107 +369,109 @@ func (r *ReplicaCircuitBreaker) done(
 	br *kvpb.BatchResponse,
 	err error,
 	nowNanos int64,
-	cancel func(),
 ) {
 	if r == nil {
 		return // circuit breakers disabled when we began tracking the request
 	}
 
-	// Untrack the request.
-	stallSince := r.stallSince.Load()
-	if inflightReqs := r.inflightReqs.Add(-1); inflightReqs < 0 {
-		log.Fatalf(ctx, "inflightReqs %d < 0", inflightReqs)
-	} else if inflightReqs == 0 {
-		// If this was the last inflight request, stop tracking a stall. If the
-		// replica has in fact stalled but we keep hitting client timeouts, then the
-		// error probes will deal with it instead.
-		//
-		// We have to be careful not to clobber a value written by a concurrent
-		// incoming request after we read inflightReqs == 0, so we use a stallSince
-		// CAS and re-check inflightReqs on failure.
-		for !r.stallSince.CompareAndSwap(stallSince, 0) && r.inflightReqs.Load() == 0 {
-			stallSince = r.stallSince.Load()
-		}
-	} else if err == nil {
-		// If we got a response from the replica (even a br.Error), the replica
-		// isn't stalled. Bump the stall timestamp to the current response
-		// timestamp, in case a concurrent request has stalled.
-		//
-		// We have to be careful not to set this to non-zero if we raced with the
-		// last inflight request completing, so we use a stallSince CAS and re-check
-		// inflightReqs on failure.
-		for nowNanos > stallSince && !r.stallSince.CompareAndSwap(stallSince, nowNanos) &&
-			r.inflightReqs.Load() > 0 {
-			stallSince = r.stallSince.Load()
-		}
+	// Decode br.Error outside of the lock.
+	var brErrorDetail kvpb.ErrorDetailInterface
+	if br != nil && br.Error != nil {
+		brErrorDetail = br.Error.GetDetail()
 	}
 
-	// Clean up the cancel function, if cancellation is enabled.
-	if cancel != nil {
+	// Fetch probe threshold outside of lock:
+	probeThreshold := CircuitBreakerProbeThreshold.Get(&r.d.settings.SV).Nanoseconds()
+
+	shouldProbe, cancel := func() (bool, func()) {
 		r.mu.Lock()
-		delete(r.mu.cancelFns, ba) // nolint:deferunlockcheck
-		r.mu.Unlock()
+		defer r.mu.Unlock()
+
+		// Clean up the cancel function.
+		cancel := r.mu.cancelFns[ba]
+		delete(r.mu.cancelFns, ba)
+
+		if len(r.mu.cancelFns) == 0 {
+			// If this was the last inflight request, stop tracking a stall. If the
+			// replica has in fact stalled but we keep hitting client timeouts, then the
+			// error probes will deal with it instead.
+			//
+			// We have to be careful not to clobber a value written by a concurrent
+			// incoming request after we read inflightReqs == 0, so we use a stallSince
+			// CAS and re-check inflightReqs on failure.
+			r.mu.stallSince = 0
+		} else if err == nil {
+			// If we got a response from the replica (even a br.Error), the replica
+			// isn't stalled. Bump the stall timestamp to the current response
+			// timestamp, in case a concurrent request has stalled.
+			r.mu.stallSince = max(nowNanos, r.mu.stallSince)
+		}
+
+		// If this was a local send error, i.e. err != nil, we rely on RPC circuit
+		// breakers to fail fast. There is no need for us to launch a probe as well.
+		// This includes the case where either the remote or local node has been
+		// decommissioned.
+		//
+		// However, if the sender's context is cancelled, pessimistically assume this
+		// is a timeout and fall through to the error handling below to potentially
+		// launch a probe. Even though this may simply be the client going away, we
+		// can't know if this was because of a client timeout or not, so we assume
+		// there may be a problem with the replica. We will typically see recent
+		// successful responses too if that isn't the case.
+		if err != nil && ctx.Err() == nil {
+			return false, cancel
+		}
+
+		// Handle error responses. To record the response as an error, err is set
+		// non-nil. Otherwise, the response is recorded as a success.
+		if err == nil && br.Error != nil {
+			switch tErr := brErrorDetail.(type) {
+			case *kvpb.NotLeaseHolderError:
+				// Consider NLHE a success if it contains a lease record, as the replica
+				// appears functional. If there is no lease record, the replica was unable
+				// to acquire a lease and has no idea who the leaseholder might be, likely
+				// because it is disconnected from the leader or there is no quorum.
+				if tErr.Lease == nil || *tErr.Lease == (roachpb.Lease{}) {
+					err = br.Error.GoError()
+				}
+			case *kvpb.RangeNotFoundError, *kvpb.RangeKeyMismatchError, *kvpb.StoreNotFoundError:
+				// If the replica no longer exists, we don't need to probe. The DistSender
+				// will stop using the replica soon enough.
+			default:
+				// Record all other errors.
+				//
+				// NB: this pessimistically assumes that any other error response may
+				// indicate a replica problem. That's generally not true for most errors.
+				// However, we will generally also see successful responses. If we only
+				// see errors, it seems worthwhile to probe the replica and check, rather
+				// than explicitly listing error types and possibly missing some. In the
+				// worst case, this means launcing a goroutine and sending a cheap probe
+				// every few seconds for each failing replica (which could be bad enough
+				// across a large number of replicas).
+				err = br.Error.GoError()
+			}
+		}
+
+		// Track errors.
+		if err == nil {
+			// On success, reset the error tracking.
+			r.mu.errorSince = 0
+		} else if r.mu.errorSince == 0 {
+			// If this is the first error we've seen, record it. We'll launch a probe on
+			// a later error if necessary.
+			r.mu.errorSince = nowNanos
+		} else if nowNanos-r.mu.errorSince >= probeThreshold {
+			// The replica has been failing for the past probe threshold, probe it.
+			return true, cancel
+		}
+		return false, cancel
+	}()
+
+	if cancel != nil {
 		cancel()
 	}
 
-	// If this was a local send error, i.e. err != nil, we rely on RPC circuit
-	// breakers to fail fast. There is no need for us to launch a probe as well.
-	// This includes the case where either the remote or local node has been
-	// decommissioned.
-	//
-	// However, if the sender's context is cancelled, pessimistically assume this
-	// is a timeout and fall through to the error handling below to potentially
-	// launch a probe. Even though this may simply be the client going away, we
-	// can't know if this was because of a client timeout or not, so we assume
-	// there may be a problem with the replica. We will typically see recent
-	// successful responses too if that isn't the case.
-	if err != nil && ctx.Err() == nil {
-		return
-	}
-
-	// Handle error responses. To record the response as an error, err is set
-	// non-nil. Otherwise, the response is recorded as a success.
-	if err == nil && br.Error != nil {
-		switch tErr := br.Error.GetDetail().(type) {
-		case *kvpb.NotLeaseHolderError:
-			// Consider NLHE a success if it contains a lease record, as the replica
-			// appears functional. If there is no lease record, the replica was unable
-			// to acquire a lease and has no idea who the leaseholder might be, likely
-			// because it is disconnected from the leader or there is no quorum.
-			if tErr.Lease == nil || *tErr.Lease == (roachpb.Lease{}) {
-				err = br.Error.GoError()
-			}
-		case *kvpb.RangeNotFoundError, *kvpb.RangeKeyMismatchError, *kvpb.StoreNotFoundError:
-			// If the replica no longer exists, we don't need to probe. The DistSender
-			// will stop using the replica soon enough.
-		default:
-			// Record all other errors.
-			//
-			// NB: this pessimistically assumes that any other error response may
-			// indicate a replica problem. That's generally not true for most errors.
-			// However, we will generally also see successful responses. If we only
-			// see errors, it seems worthwhile to probe the replica and check, rather
-			// than explicitly listing error types and possibly missing some. In the
-			// worst case, this means launcing a goroutine and sending a cheap probe
-			// every few seconds for each failing replica (which could be bad enough
-			// across a large number of replicas).
-			err = br.Error.GoError()
-		}
-	}
-
-	// Track errors.
-	errorSince := r.errorSince.Load()
-	if err == nil {
-		// On success, reset the error tracking.
-		if errorSince > 0 {
-			r.errorSince.CompareAndSwap(errorSince, 0)
-		}
-	} else if errorSince == 0 {
-		// If this is the first error we've seen, record it. We'll launch a probe on
-		// a later error if necessary.
-		r.errorSince.CompareAndSwap(0, nowNanos)
-	} else if nowNanos-errorSince >= CircuitBreakerProbeThreshold.Get(&r.d.settings.SV).Nanoseconds() {
-		// The replica has been failing for the past probe threshold, probe it.
+	if shouldProbe {
 		r.breaker.Probe()
 	}
 }
@@ -561,92 +489,6 @@ func (r *ReplicaCircuitBreaker) launchProbe(report func(error), done func()) {
 
 	name := fmt.Sprintf("distsender-replica-probe-%s", r.id())
 	err := r.d.stopper.RunAsyncTask(ctx, name, func(ctx context.Context) {
-		defer func() {
-			// Always reset the breaker when returning, to avoid launching another
-			// probe immediately. We use a stallSince CAS to avoid clobbering any
-			// in-flight requests that may have stalled, such that we'll launch
-			// another probe once the threshold is reached again.
-			nowNanos := timeutil.Now().UnixNano()
-			for {
-				stallSince := r.stallSince.Load()
-				if stallSince == 0 || nowNanos < stallSince {
-					break
-				}
-				stallSinceNew := nowNanos
-				if r.inflightReqs.Load() == 0 {
-					stallSinceNew = 0
-				}
-				if r.stallSince.CompareAndSwap(stallSince, stallSinceNew) {
-					break
-				}
-			}
-			r.errorSince.Store(0)
-			report(nil)
-			done()
-		}()
-
-		ctx, cancel := r.d.stopper.WithCancelOnQuiesce(ctx)
-		defer cancel()
-
-		// Prepare the probe transport, using SystemClass to avoid RPC latency.
-		//
-		// We construct a bare replica slice without any locality information, since
-		// we're only going to contact this replica.
-		replicas := ReplicaSlice{{ReplicaDescriptor: r.desc}}
-		opts := SendOptions{
-			class:                  rpc.SystemClass,
-			metrics:                &r.d.metrics,
-			dontConsiderConnHealth: true,
-		}
-		transport, err := r.d.transportFactory(opts, replicas)
-		if err != nil {
-			log.Errorf(ctx, "failed to launch probe: %s", err)
-			return
-		}
-		defer transport.Release()
-
-		// Continually probe the replica until it succeeds. We probe immediately
-		// since we only trip the breaker on probe failure.
-		timer := timeutil.NewTimer()
-		defer timer.Stop()
-		for {
-			// Bail out if circuit breakers are disabled.
-			if !CircuitBreakerEnabled.Get(&r.d.settings.SV) {
-				return
-			}
-
-			// Probe the replica.
-			if err := r.sendProbe(ctx, transport); err != nil {
-				report(err)
-			} else {
-				return // defer will untrip breaker
-			}
-
-			// Cancel in-flight requests on failure. We do this on every failure, and
-			// also remove the cancel functions from the map (even though done() will
-			// also clean them up), in case another request makes it in after the
-			// breaker trips. There should typically never be any contention here.
-			func() {
-				r.mu.Lock()
-				defer r.mu.Unlock()
-				for ba, cancel := range r.mu.cancelFns {
-					delete(r.mu.cancelFns, ba)
-					cancel()
-				}
-			}()
-
-			timer.Reset(CircuitBreakerProbeInterval.Get(&r.d.settings.SV))
-			select {
-			case <-timer.C:
-				timer.Read = true
-			case <-r.d.stopper.ShouldQuiesce():
-				return
-			case <-ctx.Done():
-				return
-			case <-r.closedC:
-				return
-			}
-		}
 	})
 	if err != nil {
 		done()

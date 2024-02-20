@@ -49,7 +49,6 @@ func TestDistSenderReplicaStall(t *testing.T) {
 		st := cluster.MakeTestingClusterSettings()
 		kvserver.ExpirationLeasesOnly.Override(ctx, &st.SV, true)
 		kvcoord.CircuitBreakerEnabled.Override(ctx, &st.SV, true)
-		kvcoord.CircuitBreakerCancelInflight.Override(ctx, &st.SV, true)
 		kvcoord.CircuitBreakerProbeThreshold.Override(ctx, &st.SV, time.Second)
 		kvcoord.CircuitBreakerProbeInterval.Override(ctx, &st.SV, time.Second)
 		kvcoord.CircuitBreakerProbeTimeout.Override(ctx, &st.SV, time.Second)
@@ -192,7 +191,6 @@ func benchmarkCircuitBreakersTrack(
 
 	st := cluster.MakeTestingClusterSettings()
 	kvcoord.CircuitBreakerEnabled.Override(ctx, &st.SV, enable)
-	kvcoord.CircuitBreakerCancelInflight.Override(ctx, &st.SV, cancel)
 
 	cbs := kvcoord.NewDistSenderCircuitBreakers(stopper, st, nil, kvcoord.DistSenderMetrics{})
 
